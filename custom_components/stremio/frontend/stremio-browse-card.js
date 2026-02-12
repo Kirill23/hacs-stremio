@@ -483,6 +483,7 @@ class StremioBrowseCard extends LitElement {
     this._similarSourceItem = null;
     this._loadingSimilar = false;
     this._searchQuery = '';
+    this._searchDebounceTimer = null;
     this._genres = [
       'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',
       'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
@@ -637,22 +638,55 @@ class StremioBrowseCard extends LitElement {
 
   _handleSearchInput(e) {
     this._searchQuery = e.target.value;
+    // Debounce search - wait 500ms after user stops typing
+    clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      this._performSearch();
+    }, 500);
   }
 
-  _getFilteredItems() {
-    if (!this._catalogItems || !Array.isArray(this._catalogItems)) {
-      return [];
-    }
-    
+  async _performSearch() {
     if (!this._searchQuery || this._searchQuery.trim() === '') {
-      return this._catalogItems;
+      // If search is empty, reload the normal catalog
+      await this._loadCatalog();
+      return;
     }
-    
-    const lowerQuery = this._searchQuery.toLowerCase();
-    return this._catalogItems.filter(item => {
-      const title = (item.title || '').toLowerCase();
-      return title.includes(lowerQuery);
-    });
+
+    this._loading = true;
+    this.requestUpdate();
+
+    try {
+      // Call the search_catalog service
+      const response = await this._hass.callService(
+        'stremio',
+        'search_catalog',
+        {
+          query: this._searchQuery,
+          media_type: this._mediaType,
+          limit: this.config.max_items || 50,
+        },
+        { return_response: true }
+      );
+
+      if (response && response.items) {
+        // Convert response items to match the expected format
+        this._catalogItems = response.items.map(item => ({
+          ...item,
+          title: item.name || item.title,
+          thumbnail: item.poster,
+          media_content_id: `${item.type}/${item.id}`,
+          media_content_type: item.type === 'movie' ? 'video/mp4' : 'application/x-mpegURL',
+        }));
+      } else {
+        this._catalogItems = [];
+      }
+    } catch (err) {
+      console.error('Failed to search catalog:', err);
+      this._catalogItems = [];
+    } finally {
+      this._loading = false;
+      this.requestUpdate();
+    }
   }
 
   _handleItemClick(item) {
@@ -1259,25 +1293,18 @@ class StremioBrowseCard extends LitElement {
           </div>
         ` : this._catalogItems.length === 0 ? html`
           <div class="empty-state">
-            No ${this._viewMode} ${this._mediaType === 'movie' ? 'movies' : 'TV shows'} found
+            ${this._searchQuery ? `No results for "${this._searchQuery}"` : `No ${this._viewMode} ${this._mediaType === 'movie' ? 'movies' : 'TV shows'} found`}
           </div>
-        ` : (() => {
-          const filteredItems = this._getFilteredItems();
-          return filteredItems.length === 0 ? html`
-            <div class="empty-state">
-              No items match your search
-            </div>
-          ` : html`
-            <div 
-              class="catalog-grid ${this.config.horizontal_scroll ? 'horizontal' : ''}" 
-              role="list"
-              aria-label="Catalog items"
-              style="${gridStyle}"
-            >
-              ${filteredItems.map(item => this._renderCatalogItem(item))}
-            </div>
-          `;
-        })()}
+        ` : html`
+          <div 
+            class="catalog-grid ${this.config.horizontal_scroll ? 'horizontal' : ''}" 
+            role="list"
+            aria-label="Catalog items"
+            style="${gridStyle}"
+          >
+            ${this._catalogItems.map(item => this._renderCatalogItem(item))}
+          </div>
+        `}
       </ha-card>
     `;
   }

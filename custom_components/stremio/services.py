@@ -37,6 +37,7 @@ from .const import (
     SERVICE_HANDOVER_TO_APPLE_TV,
     SERVICE_REFRESH_LIBRARY,
     SERVICE_REMOVE_FROM_LIBRARY,
+    SERVICE_SEARCH_CATALOG,
     SERVICE_SEARCH_LIBRARY,
 )
 from .coordinator import StremioDataUpdateCoordinator
@@ -120,6 +121,16 @@ BROWSE_CATALOG_SCHEMA = vol.Schema(
         vol.Optional(ATTR_SKIP, default=0): vol.All(
             vol.Coerce(int), vol.Range(min=0)  # type: ignore[arg-type]
         ),
+        vol.Optional(ATTR_LIMIT, default=50): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)  # type: ignore[arg-type]
+        ),
+    }
+)
+
+SEARCH_CATALOG_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_QUERY): cv.string,
+        vol.Optional(ATTR_MEDIA_TYPE, default="movie"): vol.In(["movie", "series"]),
         vol.Optional(ATTR_LIMIT, default=50): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=100)  # type: ignore[arg-type]
         ),
@@ -614,6 +625,41 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         except StremioConnectionError as err:
             raise HomeAssistantError(f"Failed to browse catalog: {err}") from err
 
+    async def handle_search_catalog(call: ServiceCall) -> ServiceResponse:
+        """Handle search_catalog service call.
+
+        Search the Stremio catalog (Cinemeta) for movies or series by title.
+        Returns a list of matching items with metadata.
+        """
+        _, client, _ = _get_entry_data(hass)
+
+        query = call.data[ATTR_QUERY]
+        media_type = call.data.get(ATTR_MEDIA_TYPE, "movie")
+        limit = call.data.get(ATTR_LIMIT, 50)
+
+        _LOGGER.debug(
+            "Searching catalog: query=%s, type=%s, limit=%d",
+            query,
+            media_type,
+            limit,
+        )
+
+        try:
+            # Search catalog using Cinemeta
+            results = await client.async_search_catalog(
+                query=query, media_type=media_type, limit=limit
+            )
+
+            return {
+                "items": results,
+                "count": len(results),
+                "query": query,
+                "media_type": media_type,
+            }
+
+        except StremioConnectionError as err:
+            raise HomeAssistantError(f"Failed to search catalog: {err}") from err
+
     async def handle_get_upcoming_episodes(call: ServiceCall) -> ServiceResponse:
         """Handle get_upcoming_episodes service call.
 
@@ -821,6 +867,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         SERVICE_BROWSE_CATALOG,
         handle_browse_catalog,
         schema=BROWSE_CATALOG_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SEARCH_CATALOG,
+        handle_search_catalog,
+        schema=SEARCH_CATALOG_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
 
