@@ -6,8 +6,8 @@
  * 
  * @customElement stremio-browse-card
  * @extends LitElement
- * @version 0.4.0
- * @cacheBust 20260119b
+ * @version 0.5.33
+ * @cacheBust 2026021223
  */
 
 // Safe LitElement access - wait for HA frontend to be ready
