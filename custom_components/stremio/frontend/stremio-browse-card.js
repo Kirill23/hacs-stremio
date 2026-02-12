@@ -636,18 +636,23 @@ class StremioBrowseCard extends LitElement {
   }
 
   _handleSearchInput(e) {
-    this._searchQuery = e.target.value.toLowerCase();
+    this._searchQuery = e.target.value;
     this.requestUpdate();
   }
 
   _getFilteredItems() {
+    if (!this._catalogItems || !Array.isArray(this._catalogItems)) {
+      return [];
+    }
+    
     if (!this._searchQuery || this._searchQuery.trim() === '') {
       return this._catalogItems;
     }
     
+    const lowerQuery = this._searchQuery.toLowerCase();
     return this._catalogItems.filter(item => {
       const title = (item.title || '').toLowerCase();
-      return title.includes(this._searchQuery);
+      return title.includes(lowerQuery);
     });
   }
 
