@@ -637,7 +637,6 @@ class StremioBrowseCard extends LitElement {
 
   _handleSearchInput(e) {
     this._searchQuery = e.target.value;
-    this.requestUpdate();
   }
 
   _getFilteredItems() {
@@ -1248,7 +1247,7 @@ class StremioBrowseCard extends LitElement {
               class="search-input"
               placeholder="Search catalog..."
               aria-label="Search catalog"
-              .value=${this._searchQuery}
+              value=${this._searchQuery}
               @input=${this._handleSearchInput}
             />
           </div>
@@ -1266,7 +1265,7 @@ class StremioBrowseCard extends LitElement {
           const filteredItems = this._getFilteredItems();
           return filteredItems.length === 0 ? html`
             <div class="empty-state">
-              No items match your search
+              ${this._searchQuery ? `No items match "${this._searchQuery}"` : 'No items found'}
             </div>
           ` : html`
             <div 
