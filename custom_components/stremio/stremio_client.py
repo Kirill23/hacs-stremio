@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import time
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -1692,7 +1693,6 @@ class StremioClient:
         from .const import CINEMETA_BASE_URL
 
         # URL encode the search query
-        import urllib.parse
         encoded_query = urllib.parse.quote(query.strip())
         search_url = f"{CINEMETA_BASE_URL}/catalog/{media_type}/imdb/search={encoded_query}.json"
 

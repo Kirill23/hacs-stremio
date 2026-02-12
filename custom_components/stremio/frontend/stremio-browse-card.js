@@ -28,6 +28,9 @@ const loadCardHelpers = async () => {
 const { LitElement, html, css } = await loadCardHelpers();
 
 class StremioBrowseCard extends LitElement {
+  // Class constants
+  static SEARCH_DEBOUNCE_DELAY = 500; // milliseconds
+
   static get properties() {
     return {
       hass: { type: Object },
@@ -638,11 +641,31 @@ class StremioBrowseCard extends LitElement {
 
   _handleSearchInput(e) {
     this._searchQuery = e.target.value;
-    // Debounce search - wait 500ms after user stops typing
+    // Debounce search to avoid excessive API calls
     clearTimeout(this._searchDebounceTimer);
     this._searchDebounceTimer = setTimeout(() => {
       this._performSearch();
-    }, 500);
+    }, StremioBrowseCard.SEARCH_DEBOUNCE_DELAY);
+  }
+
+  _transformCatalogItem(item) {
+    /**
+     * Transform Cinemeta API response item to internal format.
+     * Handles both media_source responses and direct API responses.
+     */
+    // If already in the right format (from media_source), return as-is
+    if (item.thumbnail && item.media_content_id) {
+      return item;
+    }
+    
+    // Transform from Cinemeta API format
+    return {
+      ...item,
+      title: item.name || item.title,
+      thumbnail: item.poster,
+      media_content_id: `${item.type}/${item.id}`,
+      media_content_type: item.type === 'movie' ? 'video/mp4' : 'application/x-mpegURL',
+    };
   }
 
   async _performSearch() {
@@ -669,14 +692,8 @@ class StremioBrowseCard extends LitElement {
       );
 
       if (response && response.items) {
-        // Convert response items to match the expected format
-        this._catalogItems = response.items.map(item => ({
-          ...item,
-          title: item.name || item.title,
-          thumbnail: item.poster,
-          media_content_id: `${item.type}/${item.id}`,
-          media_content_type: item.type === 'movie' ? 'video/mp4' : 'application/x-mpegURL',
-        }));
+        // Transform items to internal format
+        this._catalogItems = response.items.map(item => this._transformCatalogItem(item));
       } else {
         this._catalogItems = [];
       }
