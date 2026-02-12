@@ -41,6 +41,7 @@ class StremioBrowseCard extends LitElement {
       _similarItems: { type: Array },
       _similarSourceItem: { type: Object },
       _loadingSimilar: { type: Boolean },
+      _searchQuery: { type: String },
     };
   }
 
@@ -101,6 +102,43 @@ class StremioBrowseCard extends LitElement {
         background: var(--primary-color);
         color: var(--text-primary-color);
         border-color: var(--primary-color);
+      }
+
+      .search-container {
+        position: relative;
+        margin-bottom: 8px;
+      }
+
+      .search-input {
+        width: 100%;
+        padding: 8px 12px;
+        padding-left: 36px;
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 0.9em;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      .search-input::placeholder {
+        color: var(--secondary-text-color);
+        opacity: 0.7;
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--secondary-text-color);
+        pointer-events: none;
       }
 
       .catalog-grid {
@@ -444,6 +482,7 @@ class StremioBrowseCard extends LitElement {
     this._similarItems = null;
     this._similarSourceItem = null;
     this._loadingSimilar = false;
+    this._searchQuery = '';
     this._genres = [
       'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',
       'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
@@ -594,6 +633,22 @@ class StremioBrowseCard extends LitElement {
   _handleTypeChange(type) {
     this._mediaType = type;
     this._loadCatalog();
+  }
+
+  _handleSearchInput(e) {
+    this._searchQuery = e.target.value.toLowerCase();
+    this.requestUpdate();
+  }
+
+  _getFilteredItems() {
+    if (!this._searchQuery || this._searchQuery.trim() === '') {
+      return this._catalogItems;
+    }
+    
+    return this._catalogItems.filter(item => {
+      const title = (item.title || '').toLowerCase();
+      return title.includes(this._searchQuery);
+    });
   }
 
   _handleItemClick(item) {
@@ -1180,6 +1235,18 @@ class StremioBrowseCard extends LitElement {
               </select>
             </div>
           ` : ''}
+
+          <div class="search-container">
+            <ha-icon class="search-icon" icon="mdi:magnify"></ha-icon>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search catalog..."
+              aria-label="Search catalog"
+              .value=${this._searchQuery}
+              @input=${this._handleSearchInput}
+            />
+          </div>
         </div>
 
         ${this._loading ? html`
@@ -1190,16 +1257,23 @@ class StremioBrowseCard extends LitElement {
           <div class="empty-state">
             No ${this._viewMode} ${this._mediaType === 'movie' ? 'movies' : 'TV shows'} found
           </div>
-        ` : html`
-          <div 
-            class="catalog-grid ${this.config.horizontal_scroll ? 'horizontal' : ''}" 
-            role="list"
-            aria-label="Catalog items"
-            style="${gridStyle}"
-          >
-            ${this._catalogItems.map(item => this._renderCatalogItem(item))}
-          </div>
-        `}
+        ` : (() => {
+          const filteredItems = this._getFilteredItems();
+          return filteredItems.length === 0 ? html`
+            <div class="empty-state">
+              No items match your search
+            </div>
+          ` : html`
+            <div 
+              class="catalog-grid ${this.config.horizontal_scroll ? 'horizontal' : ''}" 
+              role="list"
+              aria-label="Catalog items"
+              style="${gridStyle}"
+            >
+              ${filteredItems.map(item => this._renderCatalogItem(item))}
+            </div>
+          `;
+        })()}
       </ha-card>
     `;
   }
