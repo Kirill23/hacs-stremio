@@ -131,6 +131,9 @@ SEARCH_CATALOG_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_QUERY): cv.string,
         vol.Optional(ATTR_MEDIA_TYPE, default="movie"): vol.In(["movie", "series"]),
+        vol.Optional(ATTR_SKIP, default=0): vol.All(
+            vol.Coerce(int), vol.Range(min=0)  # type: ignore[arg-type]
+        ),
         vol.Optional(ATTR_LIMIT, default=50): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=100)  # type: ignore[arg-type]
         ),
@@ -636,18 +639,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         query = call.data[ATTR_QUERY]
         media_type = call.data.get(ATTR_MEDIA_TYPE, "movie")
         limit = call.data.get(ATTR_LIMIT, 50)
+        skip = call.data.get(ATTR_SKIP, 0)
 
         _LOGGER.debug(
-            "Searching catalog: query=%s, type=%s, limit=%d",
+            "Searching catalog: query=%s, type=%s, limit=%d, skip=%d",
             query,
             media_type,
             limit,
+            skip,
         )
 
         try:
             # Search catalog using Cinemeta
             results = await client.async_search_catalog(
-                query=query, media_type=media_type, limit=limit
+                query=query, media_type=media_type, limit=limit, skip=skip
             )
 
             return {
@@ -655,6 +660,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 "count": len(results),
                 "query": query,
                 "media_type": media_type,
+                "skip": skip,
+                "limit": limit,
             }
 
         except StremioConnectionError as err:

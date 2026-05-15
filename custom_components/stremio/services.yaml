@@ -274,6 +274,17 @@ search_catalog:
           options:
             - "movie"
             - "series"
+    skip:
+      name: Skip
+      description: Number of items to skip for pagination.
+      required: false
+      default: 0
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 1000
+          mode: box
     limit:
       name: Limit
       description: Maximum number of results to return.
