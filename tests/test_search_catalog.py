@@ -131,7 +131,7 @@ async def test_search_catalog_url_encodes_query():
 
 @pytest.mark.asyncio
 async def test_search_catalog_pagination(mock_search_response):
-    """Skip param is encoded into Cinemeta path extras (search=...&skip=...).""" 
+    """Skip param is encoded into Cinemeta path extras (search=...&skip=...)."""
     client = StremioClient("test@example.com", "fake_auth_key")
 
     with aioresponses() as mock_aio:
