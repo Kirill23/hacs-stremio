@@ -6,8 +6,8 @@
  * 
  * @customElement stremio-browse-card
  * @extends LitElement
- * @version 0.4.0
- * @cacheBust 20260119b
+ * @version 0.5.33
+ * @cacheBust 2026021223
  */
 
 // Safe LitElement access - wait for HA frontend to be ready
@@ -28,6 +28,9 @@ const loadCardHelpers = async () => {
 const { LitElement, html, css } = await loadCardHelpers();
 
 class StremioBrowseCard extends LitElement {
+  // Class constants
+  static SEARCH_DEBOUNCE_DELAY = 500; // milliseconds
+
   static get properties() {
     return {
       hass: { type: Object },
@@ -41,6 +44,7 @@ class StremioBrowseCard extends LitElement {
       _similarItems: { type: Array },
       _similarSourceItem: { type: Object },
       _loadingSimilar: { type: Boolean },
+      _searchQuery: { type: String },
     };
   }
 
@@ -101,6 +105,43 @@ class StremioBrowseCard extends LitElement {
         background: var(--primary-color);
         color: var(--text-primary-color);
         border-color: var(--primary-color);
+      }
+
+      .search-container {
+        position: relative;
+        margin-bottom: 8px;
+      }
+
+      .search-input {
+        width: 100%;
+        padding: 8px 12px;
+        padding-left: 36px;
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 0.9em;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      .search-input::placeholder {
+        color: var(--secondary-text-color);
+        opacity: 0.7;
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--secondary-text-color);
+        pointer-events: none;
       }
 
       .catalog-grid {
@@ -444,6 +485,8 @@ class StremioBrowseCard extends LitElement {
     this._similarItems = null;
     this._similarSourceItem = null;
     this._loadingSimilar = false;
+    this._searchQuery = '';
+    this._searchDebounceTimer = null;
     this._genres = [
       'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',
       'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
@@ -594,6 +637,73 @@ class StremioBrowseCard extends LitElement {
   _handleTypeChange(type) {
     this._mediaType = type;
     this._loadCatalog();
+  }
+
+  _handleSearchInput(e) {
+    this._searchQuery = e.target.value;
+    // Debounce search to avoid excessive API calls
+    clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      this._performSearch();
+    }, StremioBrowseCard.SEARCH_DEBOUNCE_DELAY);
+  }
+
+  _transformCatalogItem(item) {
+    /**
+     * Transform Cinemeta API response item to internal format.
+     * Handles both media_source responses and direct API responses.
+     */
+    // If already in the right format (from media_source), return as-is
+    if (item.thumbnail && item.media_content_id) {
+      return item;
+    }
+    
+    // Transform from Cinemeta API format
+    return {
+      ...item,
+      title: item.name || item.title,
+      thumbnail: item.poster,
+      media_content_id: `${item.type}/${item.id}`,
+      media_content_type: item.type === 'movie' ? 'video/mp4' : 'application/x-mpegURL',
+    };
+  }
+
+  async _performSearch() {
+    if (!this._searchQuery || this._searchQuery.trim() === '') {
+      // If search is empty, reload the normal catalog
+      await this._loadCatalog();
+      return;
+    }
+
+    this._loading = true;
+    this.requestUpdate();
+
+    try {
+      // Call the search_catalog service
+      const response = await this._hass.callService(
+        'stremio',
+        'search_catalog',
+        {
+          query: this._searchQuery,
+          media_type: this._mediaType,
+          limit: this.config.max_items || 50,
+        },
+        { return_response: true }
+      );
+
+      if (response && response.items) {
+        // Transform items to internal format
+        this._catalogItems = response.items.map(item => this._transformCatalogItem(item));
+      } else {
+        this._catalogItems = [];
+      }
+    } catch (err) {
+      console.error('Failed to search catalog:', err);
+      this._catalogItems = [];
+    } finally {
+      this._loading = false;
+      this.requestUpdate();
+    }
   }
 
   _handleItemClick(item) {
@@ -1180,6 +1290,18 @@ class StremioBrowseCard extends LitElement {
               </select>
             </div>
           ` : ''}
+
+          <div class="search-container">
+            <ha-icon class="search-icon" icon="mdi:magnify"></ha-icon>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search catalog..."
+              aria-label="Search catalog"
+              .value=${this._searchQuery}
+              @input=${this._handleSearchInput}
+            />
+          </div>
         </div>
 
         ${this._loading ? html`
@@ -1188,7 +1310,7 @@ class StremioBrowseCard extends LitElement {
           </div>
         ` : this._catalogItems.length === 0 ? html`
           <div class="empty-state">
-            No ${this._viewMode} ${this._mediaType === 'movie' ? 'movies' : 'TV shows'} found
+            ${this._searchQuery ? `No results for "${this._searchQuery}"` : `No ${this._viewMode} ${this._mediaType === 'movie' ? 'movies' : 'TV shows'} found`}
           </div>
         ` : html`
           <div 

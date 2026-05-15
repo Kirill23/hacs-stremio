@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import time
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -1654,6 +1655,78 @@ class StremioClient:
             skip=skip,
             limit=limit,
         )
+
+    async def async_search_catalog(
+        self, query: str, media_type: str = "movie", limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Search Cinemeta catalog by title.
+
+        Uses Cinemeta's search endpoint to find movies and series by title.
+        Endpoint format: /catalog/{type}/imdb/search={query}.json
+
+        Example URLs:
+        - https://v3-cinemeta.strem.io/catalog/movie/imdb/search=Inception.json
+        - https://v3-cinemeta.strem.io/catalog/series/imdb/search=Breaking Bad.json
+
+        Args:
+            query: Search query (movie/series title)
+            media_type: Content type ("movie" or "series")
+            limit: Maximum items to return (default 50)
+
+        Returns:
+            List of matching catalog items with metadata
+
+        Raises:
+            StremioConnectionError: Connection or request failed
+        """
+        if not query or not query.strip():
+            _LOGGER.debug("Empty search query, returning empty results")
+            return []
+
+        _LOGGER.debug(
+            "Searching catalog: query=%s, type=%s, limit=%d",
+            query,
+            media_type,
+            limit,
+        )
+
+        from .const import CINEMETA_BASE_URL
+
+        # URL encode the search query
+        encoded_query = urllib.parse.quote(query.strip())
+        search_url = f"{CINEMETA_BASE_URL}/catalog/{media_type}/imdb/search={encoded_query}.json"
+
+        try:
+            session = await self._get_session()
+
+            async with session.get(
+                search_url,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as response:
+                if response.status != 200:
+                    _LOGGER.warning(
+                        "Cinemeta search returned status %d for query '%s'",
+                        response.status,
+                        query,
+                    )
+                    return []
+
+                data = await response.json()
+                metas = data.get("metas", [])
+
+                _LOGGER.debug(
+                    "Found %d search results for '%s' (type=%s)",
+                    len(metas),
+                    query,
+                    media_type,
+                )
+
+                # Limit results
+                return metas[:limit]
+
+        except Exception as err:
+            _LOGGER.error("Error searching catalog for '%s': %s", query, err)
+            raise StremioConnectionError(f"Failed to search catalog: {err}") from err
 
     async def async_get_upcoming_episodes(
         self, days_ahead: int = 7
