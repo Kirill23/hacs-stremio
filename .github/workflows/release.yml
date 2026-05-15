@@ -24,6 +24,15 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Show release context
+        run: |
+          echo "Releasing from branch: ${{ github.ref_name }}"
+          echo "Triggering SHA: ${{ github.sha }}"
+          echo "Default branch: ${{ github.event.repository.default_branch }}"
+          if [ "${{ github.ref_name }}" != "${{ github.event.repository.default_branch }}" ]; then
+            echo "::warning::Releasing from non-default branch '${{ github.ref_name }}'. The tag will be created on this branch."
+          fi
+
       - name: Determine version
         id: version
         shell: bash
@@ -126,6 +135,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.ref_name }}
           name: Release v${{ steps.version.outputs.version }}
           files: stremio.zip
           generate_release_notes: true
@@ -145,4 +155,6 @@ jobs:
       - name: Summary
         run: |
           echo "✅ Release v${{ steps.version.outputs.version }} created successfully"
+          echo "Target ref: ${{ github.ref_name }}"
+          echo "Target SHA: $(git rev-parse HEAD)"
           echo "HACS will automatically detect the new release"
