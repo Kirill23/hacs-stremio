@@ -1757,11 +1757,21 @@ class StremioClient:
                 )
 
                 # Limit and normalize to the same shape as async_get_catalog
-                return [
-                    self._process_catalog_meta(meta, media_type)
-                    for meta in metas[:limit]
-                    if meta
-                ]
+                results: list[dict[str, Any]] = []
+                for meta in metas[:limit]:
+                    if not isinstance(meta, dict):
+                        continue
+                    try:
+                        results.append(
+                            self._process_catalog_meta(meta, media_type)
+                        )
+                    except Exception as err:
+                        _LOGGER.debug(
+                            "Skipping malformed search result for '%s': %s",
+                            query,
+                            err,
+                        )
+                return results
 
         except StremioConnectionError:
             raise
