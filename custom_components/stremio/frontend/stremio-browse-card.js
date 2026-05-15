@@ -45,6 +45,8 @@ class StremioBrowseCard extends LitElement {
       _similarSourceItem: { type: Object },
       _loadingSimilar: { type: Boolean },
       _searchQuery: { type: String },
+      _loadingMore: { type: Boolean },
+      _searchHasMore: { type: Boolean },
     };
   }
 
@@ -337,6 +339,34 @@ class StremioBrowseCard extends LitElement {
         color: var(--secondary-text-color);
       }
 
+      .load-more-container {
+        display: flex;
+        justify-content: center;
+        padding: 12px 16px 20px;
+      }
+
+      .load-more-button {
+        padding: 8px 16px;
+        background: var(--secondary-background-color);
+        color: var(--primary-text-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9em;
+        transition: background-color 0.2s, border-color 0.2s;
+      }
+
+      .load-more-button:hover:not(:disabled) {
+        background: var(--primary-color);
+        color: var(--text-primary-color);
+        border-color: var(--primary-color);
+      }
+
+      .load-more-button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
       /* Back button */
       .back-button {
         background: transparent;
@@ -487,6 +517,8 @@ class StremioBrowseCard extends LitElement {
     this._loadingSimilar = false;
     this._searchQuery = '';
     this._searchDebounceTimer = null;
+    this._loadingMore = false;
+    this._searchHasMore = false;
     this._genres = [
       'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',
       'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
@@ -626,17 +658,36 @@ class StremioBrowseCard extends LitElement {
   _handleGenreChange(e) {
     const genre = e.target.value;
     this._selectedGenre = genre === 'all' ? null : genre;
+    this._resetSearchState();
     this._loadCatalog();
   }
 
   _handleViewChange(view) {
     this._viewMode = view;
+    this._resetSearchState();
     this._loadCatalog();
   }
 
   _handleTypeChange(type) {
     this._mediaType = type;
-    this._loadCatalog();
+    // Preserve any active search when toggling movie/series so the user can
+    // see the same query applied to the other type, matching the Stremio
+    // webapp behaviour where switching tabs re-runs the search.
+    if (this._searchQuery && this._searchQuery.trim() !== '') {
+      this._searchHasMore = false;
+      this._performSearch();
+    } else {
+      this._loadCatalog();
+    }
+  }
+
+  _resetSearchState() {
+    this._searchQuery = '';
+    this._searchHasMore = false;
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+      this._searchDebounceTimer = null;
+    }
   }
 
   _handleSearchInput(e) {
@@ -668,42 +719,93 @@ class StremioBrowseCard extends LitElement {
     };
   }
 
-  async _performSearch() {
+  /**
+   * Call a Stremio backend service that returns a response, using the
+   * Home Assistant websocket API directly.
+   *
+   * `hass.callService(domain, service, data, target)` cannot return a
+   * response: its 4th argument is a *target descriptor* and the websocket
+   * schema rejects unknown keys such as `return_response`, which was the
+   * cause of the previous "extra keys not allowed @ data['target']
+   * ['return_response']" error from the search bar.
+   *
+   * @param {string} service - Stremio service name (e.g. 'search_catalog')
+   * @param {object} data - Service data payload
+   * @returns {Promise<object>} Unwrapped response payload (`response.response`
+   *   if present, otherwise the top-level object).
+   */
+  async _callStremioService(service, data) {
+    const response = await this._hass.callWS({
+      type: 'call_service',
+      domain: 'stremio',
+      service,
+      service_data: data,
+      return_response: true,
+    });
+    // HA wraps service responses in a `response` envelope; some HA versions
+    // omit the wrapper when the call goes through internal helpers, so be
+    // defensive and unwrap consistently.
+    if (response && typeof response === 'object' && 'response' in response) {
+      return response.response;
+    }
+    return response;
+  }
+
+  async _performSearch(options = {}) {
+    const append = options.append === true;
+
     if (!this._searchQuery || this._searchQuery.trim() === '') {
       // If search is empty, reload the normal catalog
+      this._searchHasMore = false;
       await this._loadCatalog();
       return;
     }
 
-    this._loading = true;
+    if (append) {
+      this._loadingMore = true;
+    } else {
+      this._loading = true;
+      this._searchHasMore = false;
+    }
     this.requestUpdate();
 
-    try {
-      // Call the search_catalog service
-      const response = await this._hass.callService(
-        'stremio',
-        'search_catalog',
-        {
-          query: this._searchQuery,
-          media_type: this._mediaType,
-          limit: this.config.max_items || 50,
-        },
-        { return_response: true }
-      );
+    const pageSize = this.config.max_items || 50;
+    const skip = append ? this._catalogItems.length : 0;
 
-      if (response && response.items) {
-        // Transform items to internal format
-        this._catalogItems = response.items.map(item => this._transformCatalogItem(item));
+    try {
+      const result = await this._callStremioService('search_catalog', {
+        query: this._searchQuery,
+        media_type: this._mediaType,
+        limit: pageSize,
+        skip,
+      });
+
+      const items = (result && Array.isArray(result.items)) ? result.items : [];
+      const transformed = items.map(item => this._transformCatalogItem(item));
+
+      if (append) {
+        this._catalogItems = [...this._catalogItems, ...transformed];
       } else {
-        this._catalogItems = [];
+        this._catalogItems = transformed;
       }
+      // If the page came back full, there may be more results to fetch.
+      this._searchHasMore = transformed.length >= pageSize;
     } catch (err) {
       console.error('Failed to search catalog:', err);
-      this._catalogItems = [];
+      if (!append) {
+        this._catalogItems = [];
+      }
+      this._searchHasMore = false;
     } finally {
       this._loading = false;
+      this._loadingMore = false;
       this.requestUpdate();
     }
+  }
+
+  _loadMoreSearchResults() {
+    if (this._loadingMore || this._loading || !this._searchHasMore) return;
+    this._performSearch({ append: true });
   }
 
   _handleItemClick(item) {
@@ -931,24 +1033,13 @@ class StremioBrowseCard extends LitElement {
       serviceData.episode = episode;
     }
 
-    // Call service with return_response using WebSocket directly
-    this._hass.callWS({
-      type: 'call_service',
-      domain: 'stremio',
-      service: 'get_streams',
-      service_data: serviceData,
-      return_response: true,
-    })
+    // Call service via shared helper (uses callWS so return_response works)
+    this._callStremioService('get_streams', serviceData)
       .then((response) => {
         console.log('[Browse Card] Streams response:', response);
-        
-        let streams = null;
-        if (response?.response?.streams) {
-          streams = response.response.streams;
-        } else if (response?.streams) {
-          streams = response.streams;
-        }
-        
+
+        const streams = response?.streams || null;
+
         if (streams && streams.length > 0) {
           console.log('[Browse Card] Found', streams.length, 'streams');
           const displayItem = { ...item };
@@ -1028,27 +1119,16 @@ class StremioBrowseCard extends LitElement {
 
     this._loadingSimilar = true;
 
-    this._hass.callWS({
-      type: 'call_service',
-      domain: 'stremio',
-      service: 'get_similar_content',
-      service_data: {
-        media_id: mediaId,
-        limit: 20,
-      },
-      return_response: true,
+    this._callStremioService('get_similar_content', {
+      media_id: mediaId,
+      limit: 20,
     })
       .then((response) => {
         console.log('[Browse Card] Similar content response:', response);
         this._loadingSimilar = false;
-        
-        let similarItems = null;
-        if (response?.response?.similar) {
-          similarItems = response.response.similar;
-        } else if (response?.similar) {
-          similarItems = response.similar;
-        }
-        
+
+        const similarItems = response?.similar || null;
+
         if (similarItems && similarItems.length > 0) {
           console.log('[Browse Card] Found', similarItems.length, 'similar items');
           this._similarSourceItem = item;
@@ -1321,6 +1401,18 @@ class StremioBrowseCard extends LitElement {
           >
             ${this._catalogItems.map(item => this._renderCatalogItem(item))}
           </div>
+          ${this._searchQuery && this._searchHasMore ? html`
+            <div class="load-more-container">
+              <button
+                class="load-more-button"
+                @click=${() => this._loadMoreSearchResults()}
+                ?disabled=${this._loadingMore}
+                aria-label="Load more search results"
+              >
+                ${this._loadingMore ? 'Loading...' : 'Load more'}
+              </button>
+            </div>
+          ` : ''}
         `}
       </ha-card>
     `;

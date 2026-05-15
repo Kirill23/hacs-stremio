@@ -1478,6 +1478,32 @@ class StremioClient:
             _LOGGER.debug("Error fetching series metadata for %s: %s", media_id, err)
             return None
 
+    @staticmethod
+    def _process_catalog_meta(
+        meta: dict[str, Any], default_media_type: str
+    ) -> dict[str, Any]:
+        """Normalize a Cinemeta meta object to the integration's catalog shape.
+
+        Shared by :py:meth:`async_get_catalog` and
+        :py:meth:`async_search_catalog` so both endpoints produce identical,
+        consumer-friendly dicts (consumers should never need to care whether
+        the item came from a "top" catalog or a "search" extra).
+        """
+        return {
+            "id": meta.get("id"),
+            "imdb_id": meta.get("id"),
+            "type": meta.get("type", default_media_type),
+            "title": meta.get("name"),
+            "poster": meta.get("poster"),
+            "posterShape": meta.get("posterShape", "poster"),
+            "year": meta.get("releaseInfo"),
+            "description": meta.get("description"),
+            "genres": meta.get("genres", []),
+            "cast": meta.get("cast", []),
+            "director": meta.get("director"),
+            "rating": meta.get("imdbRating"),
+        }
+
     async def async_get_catalog(
         self,
         media_type: str = "movie",
@@ -1577,25 +1603,13 @@ class StremioClient:
                 processed_items = []
                 for meta in metas:
                     try:
-                        item = {
-                            "id": meta.get("id"),
-                            "imdb_id": meta.get("id"),
-                            "type": meta.get("type", media_type),
-                            "title": meta.get("name"),
-                            "poster": meta.get("poster"),
-                            "posterShape": meta.get("posterShape", "poster"),
-                            "year": meta.get("releaseInfo"),
-                            "description": meta.get("description"),
-                            "genres": meta.get("genres", []),
-                            "cast": meta.get("cast", []),
-                            "director": meta.get("director"),
-                            "rating": meta.get("imdbRating"),
-                        }
-                        processed_items.append(item)
+                        processed_items.append(
+                            self._process_catalog_meta(meta, media_type)
+                        )
                     except (AttributeError, TypeError, KeyError) as err:
                         _LOGGER.debug(
                             "Error processing catalog item %s: %s",
-                            meta.get("id", "unknown"),
+                            meta.get("id", "unknown") if isinstance(meta, dict) else "unknown",
                             err,
                         )
                         continue
@@ -1657,24 +1671,36 @@ class StremioClient:
         )
 
     async def async_search_catalog(
-        self, query: str, media_type: str = "movie", limit: int = 50
+        self,
+        query: str,
+        media_type: str = "movie",
+        limit: int = 50,
+        skip: int = 0,
     ) -> list[dict[str, Any]]:
         """Search Cinemeta catalog by title.
 
         Uses Cinemeta's search endpoint to find movies and series by title.
-        Endpoint format: /catalog/{type}/imdb/search={query}.json
+        Endpoint format: /catalog/{type}/imdb/{extras}.json where extras include
+        the search term and optional pagination skip.
 
         Example URLs:
         - https://v3-cinemeta.strem.io/catalog/movie/imdb/search=Inception.json
-        - https://v3-cinemeta.strem.io/catalog/series/imdb/search=Breaking Bad.json
+        - https://v3-cinemeta.strem.io/catalog/series/imdb/search=Breaking%20Bad.json
+        - https://v3-cinemeta.strem.io/catalog/movie/imdb/search=Inception&skip=20.json
+
+        Results are normalized to the same dict shape as
+        :py:meth:`async_get_catalog` so consumers can treat them
+        interchangeably (id, imdb_id, type, title, poster, year, description,
+        genres, cast, director, rating).
 
         Args:
             query: Search query (movie/series title)
             media_type: Content type ("movie" or "series")
             limit: Maximum items to return (default 50)
+            skip: Number of items to skip for pagination (default 0)
 
         Returns:
-            List of matching catalog items with metadata
+            List of matching catalog items in normalized format.
 
         Raises:
             StremioConnectionError: Connection or request failed
@@ -1684,17 +1710,25 @@ class StremioClient:
             return []
 
         _LOGGER.debug(
-            "Searching catalog: query=%s, type=%s, limit=%d",
+            "Searching catalog: query=%s, type=%s, limit=%d, skip=%d",
             query,
             media_type,
             limit,
+            skip,
         )
 
         from .const import CINEMETA_BASE_URL
 
-        # URL encode the search query
+        # URL encode the search query. Cinemeta concatenates "extras" with
+        # ampersands inside the path segment, just like async_get_catalog.
         encoded_query = urllib.parse.quote(query.strip())
-        search_url = f"{CINEMETA_BASE_URL}/catalog/{media_type}/imdb/search={encoded_query}.json"
+        extras = [f"search={encoded_query}"]
+        if skip > 0:
+            extras.append(f"skip={skip}")
+        extras_path = "&".join(extras)
+        search_url = (
+            f"{CINEMETA_BASE_URL}/catalog/{media_type}/imdb/{extras_path}.json"
+        )
 
         try:
             session = await self._get_session()
@@ -1712,19 +1746,36 @@ class StremioClient:
                     return []
 
                 data = await response.json()
-                metas = data.get("metas", [])
+                metas = data.get("metas", []) or []
 
                 _LOGGER.debug(
-                    "Found %d search results for '%s' (type=%s)",
+                    "Found %d search results for '%s' (type=%s, skip=%d)",
                     len(metas),
                     query,
                     media_type,
+                    skip,
                 )
 
-                # Limit results
-                return metas[:limit]
+                # Limit and normalize to the same shape as async_get_catalog
+                results: list[dict[str, Any]] = []
+                for meta in metas[:limit]:
+                    if not isinstance(meta, dict):
+                        continue
+                    try:
+                        results.append(
+                            self._process_catalog_meta(meta, media_type)
+                        )
+                    except Exception as err:
+                        _LOGGER.debug(
+                            "Skipping malformed search result for '%s': %s",
+                            query,
+                            err,
+                        )
+                return results
 
-        except Exception as err:
+        except StremioConnectionError:
+            raise
+        except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.error("Error searching catalog for '%s': %s", query, err)
             raise StremioConnectionError(f"Failed to search catalog: {err}") from err
 
