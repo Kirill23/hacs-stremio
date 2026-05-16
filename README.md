@@ -1,3 +1,4 @@
+[HASS Community Forum Thread](https://community.home-assistant.io/t/stremio-integration-for-apple-tv/976514)
 # Stremio Home Assistant Integration
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
