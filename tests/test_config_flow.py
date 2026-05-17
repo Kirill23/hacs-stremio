@@ -136,7 +136,12 @@ async def test_options_flow_init(hass: HomeAssistant, mock_config_entry):
     options_flow = OptionsFlowHandler(mock_config_entry)
     options_flow.hass = hass
 
-    result = await options_flow.async_step_init()
+    with patch(
+        "custom_components.stremio.config_flow._probe_local_stremio_server",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        result = await options_flow.async_step_init()
 
     assert result["type"] == FlowResultType.FORM  # type: ignore[index]
     assert result["step_id"] == "init"  # type: ignore[index]
@@ -236,6 +241,71 @@ async def test_options_flow_reset_addon_order(hass: HomeAssistant, mock_config_e
 
     assert result["type"] == FlowResultType.CREATE_ENTRY  # type: ignore[index]
     assert result["data"]["addon_stream_order"] == []  # type: ignore[index]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_includes_torrent_server_field(
+    hass: HomeAssistant, mock_config_entry
+) -> None:
+    """The options flow surfaces torrent_server_url and progress_sync_enabled."""
+    from custom_components.stremio.const import (
+        CONF_TORRENT_SERVER_URL,
+        CONF_PROGRESS_SYNC_ENABLED,
+    )
+
+    options_flow = OptionsFlowHandler(mock_config_entry)
+    options_flow.hass = hass
+
+    with patch(
+        "custom_components.stremio.config_flow._probe_local_stremio_server",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        result = await options_flow.async_step_init()
+
+    schema_keys = set(result["data_schema"].schema.keys())
+    field_names = {getattr(k, "schema", k) for k in schema_keys}
+    assert CONF_TORRENT_SERVER_URL in field_names
+    assert CONF_PROGRESS_SYNC_ENABLED in field_names
+
+
+@pytest.mark.asyncio
+async def test_options_flow_auto_detects_local_stremio_server(
+    hass: HomeAssistant, mock_config_entry, aioresponses_mock
+) -> None:
+    """When the URL is empty, probe finds localhost:11470 and pre-fills."""
+    from custom_components.stremio.const import (
+        CONF_TORRENT_SERVER_URL,
+        STREMIO_SERVER_DEFAULT_PORT,
+    )
+
+    # Pretend homeassistant.local responds with 200 on the default port.
+    aioresponses_mock.head(
+        f"http://homeassistant.local:{STREMIO_SERVER_DEFAULT_PORT}/",
+        status=200,
+        repeat=True,
+    )
+    aioresponses_mock.head(
+        f"http://127.0.0.1:{STREMIO_SERVER_DEFAULT_PORT}/",
+        exception=ConnectionError(),
+        repeat=True,
+    )
+
+    options_flow = OptionsFlowHandler(mock_config_entry)
+    options_flow.hass = hass
+
+    result = await options_flow.async_step_init()
+
+    # The schema's default for torrent_server_url should be the discovered URL.
+    schema = result["data_schema"].schema
+    for key, _ in schema.items():
+        if getattr(key, "schema", None) == CONF_TORRENT_SERVER_URL:
+            assert key.default() == (
+                f"http://homeassistant.local:{STREMIO_SERVER_DEFAULT_PORT}"
+            )
+            break
+    else:
+        pytest.fail("torrent_server_url field missing")
 
 
 @pytest.mark.asyncio

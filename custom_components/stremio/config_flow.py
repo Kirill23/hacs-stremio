@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
 import voluptuous as vol
+from aiohttp import ClientError, ClientTimeout
 from homeassistant import config_entries
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_PIN
 from homeassistant.core import HomeAssistant, callback
@@ -27,9 +29,11 @@ from .const import (
     CONF_LIBRARY_SCAN_INTERVAL,
     CONF_PLAYER_SCAN_INTERVAL,
     CONF_POLLING_GATE_ENTITIES,
+    CONF_PROGRESS_SYNC_ENABLED,
     CONF_RESET_ADDON_ORDER,
     CONF_SHOW_COPY_URL,
     CONF_STREAM_QUALITY_PREFERENCE,
+    CONF_TORRENT_SERVER_URL,
     DEFAULT_ADDON_STREAM_ORDER,
     DEFAULT_APPLE_TV_DEVICE,
     DEFAULT_APPLE_TV_ENTITY_ID,
@@ -39,11 +43,16 @@ from .const import (
     DEFAULT_LIBRARY_SCAN_INTERVAL,
     DEFAULT_PLAYER_SCAN_INTERVAL,
     DEFAULT_POLLING_GATE_ENTITIES,
+    DEFAULT_PROGRESS_SYNC_ENABLED,
     DEFAULT_SHOW_COPY_URL,
     DEFAULT_STREAM_QUALITY_PREFERENCE,
+    DEFAULT_TORRENT_SERVER_URL,
     DOMAIN,
     HANDOVER_METHOD_AIRPLAY,
     HANDOVER_METHODS,
+    STREMIO_SERVER_DEFAULT_PORT,
+    STREMIO_SERVER_PROBE_HOSTS,
+    STREMIO_SERVER_PROBE_TIMEOUT,
     STREAM_QUALITY_OPTIONS,
 )
 from .dashboard_helper import async_create_testing_dashboard
@@ -59,7 +68,10 @@ try:
     PYATV_AVAILABLE = True
 except (ImportError, Exception) as e:
     PYATV_AVAILABLE = False
-    _LOGGER.debug("pyatv not installed or not compatible, Apple TV pairing will not be available: %s", e)
+    _LOGGER.debug(
+        "pyatv not installed or not compatible, Apple TV pairing will not be available: %s",
+        e,
+    )
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -107,6 +119,32 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         raise CannotConnect from err
     finally:
         await client.async_close()
+
+
+async def _probe_local_stremio_server(hass: HomeAssistant) -> str | None:
+    """Probe well-known hosts for a running stremio-server on port 11470.
+
+    Returns the first URL that responds with 2xx/3xx to a HEAD request,
+    or None if none respond within STREMIO_SERVER_PROBE_TIMEOUT seconds.
+    """
+    session = async_get_clientsession(hass)
+    timeout = ClientTimeout(total=STREMIO_SERVER_PROBE_TIMEOUT)
+
+    async def _check(host: str) -> str | None:
+        url = f"http://{host}:{STREMIO_SERVER_DEFAULT_PORT}"
+        try:
+            async with session.head(f"{url}/", timeout=timeout) as resp:
+                if 200 <= resp.status < 400:
+                    return url
+        except (ClientError, asyncio.TimeoutError, OSError):
+            pass
+        return None
+
+    results = await asyncio.gather(*(_check(h) for h in STREMIO_SERVER_PROBE_HOSTS))
+    for r in results:
+        if r:
+            return r
+    return None
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
@@ -259,6 +297,18 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if not self._available_addons:
             await self._fetch_available_addons()
 
+        # Auto-detect local stremio server when URL not yet configured
+        current_url = self._config_entry.options.get(
+            CONF_TORRENT_SERVER_URL, DEFAULT_TORRENT_SERVER_URL
+        )
+        discovered_url: str | None = None
+        if not current_url and user_input is None:
+            discovered_url = await _probe_local_stremio_server(self.hass)
+        torrent_default = current_url or discovered_url or DEFAULT_TORRENT_SERVER_URL
+        progress_default = self._config_entry.options.get(
+            CONF_PROGRESS_SYNC_ENABLED, DEFAULT_PROGRESS_SYNC_ENABLED
+        )
+
         if user_input is not None:
             # Store the options for later
             self._pending_options = user_input
@@ -398,6 +448,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         "create_testing_dashboard",
                         default=False,
                     ): bool,
+                    vol.Optional(
+                        CONF_TORRENT_SERVER_URL,
+                        default=torrent_default,
+                    ): selector.TextSelector(),
+                    vol.Optional(
+                        CONF_PROGRESS_SYNC_ENABLED,
+                        default=progress_default,
+                    ): selector.BooleanSelector(),
                 }
             ),
             errors=errors,
@@ -722,10 +780,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             # Try to find the media player entity
             try:
                 from homeassistant.helpers import entity_registry as er
-                
+
                 entity_registry = er.async_get(self.hass)
                 entity_id = None
-                
+
                 for entity in entity_registry.entities.values():
                     if (
                         entity.config_entry_id == self._config_entry.entry_id
@@ -735,9 +793,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         break
 
                 if entity_id:
-                    _LOGGER.info(
-                        "Creating testing dashboard for entity: %s", entity_id
-                    )
+                    _LOGGER.info("Creating testing dashboard for entity: %s", entity_id)
                     # Schedule the dashboard creation
                     self.hass.async_create_task(
                         async_create_testing_dashboard(self.hass, entity_id)
