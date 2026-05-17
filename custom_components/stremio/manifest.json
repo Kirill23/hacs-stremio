@@ -2,7 +2,7 @@
   "domain": "stremio",
   "name": "Stremio Integration",
   "codeowners": [
-    "@tamaygz"
+    "@Kirill23"
   ],
   "config_flow": true,
   "dependencies": [
@@ -11,10 +11,10 @@
     "lovelace",
     "media_source"
   ],
-  "documentation": "https://github.com/tamaygz/hacs-stremio",
+  "documentation": "https://github.com/Kirill23/hacs-stremio",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/tamaygz/hacs-stremio/issues",
+  "issue_tracker": "https://github.com/Kirill23/hacs-stremio/issues",
   "requirements": [
     "pyatv>=0.16.0"
   ],

@@ -2,9 +2,9 @@
 # Stremio Home Assistant Integration
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/tamaygz/hacs-stremio.svg?style=for-the-badge)](https://github.com/tamaygz/hacs-stremio/releases)
-[![License](https://img.shields.io/github/license/tamaygz/hacs-stremio.svg?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/github/actions/workflow/status/tamaygz/hacs-stremio/test.yml?style=for-the-badge&label=Tests)](https://github.com/tamaygz/hacs-stremio/actions)
+[![GitHub Release](https://img.shields.io/github/release/Kirill23/hacs-stremio.svg?style=for-the-badge)](https://github.com/Kirill23/hacs-stremio/releases)
+[![License](https://img.shields.io/github/license/Kirill23/hacs-stremio.svg?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Kirill23/hacs-stremio/test.yml?style=for-the-badge&label=Tests)](https://github.com/Kirill23/hacs-stremio/actions)
 
 A comprehensive Home Assistant Custom Component (HACS) integration that connects to the Stremio API to track your library, viewing activity, and media consumption.
 
@@ -38,7 +38,7 @@ A comprehensive Home Assistant Custom Component (HACS) integration that connects
 
 1. Open HACS → Integrations
 2. Click ⋮ → Custom repositories
-3. Add: `https://github.com/tamaygz/hacs-stremio` (Category: Integration)
+3. Add: `https://github.com/Kirill23/hacs-stremio` (Category: Integration)
 4. Search "Stremio" → Install → Restart HA
 
 ### Configuration
@@ -211,7 +211,7 @@ Contributions welcome! See [Development Guide](docs/development.md).
 
 ```bash
 # Setup development environment
-git clone https://github.com/tamaygz/hacs-stremio.git
+git clone https://github.com/Kirill23/hacs-stremio.git
 cd hacs-stremio
 pip install -r requirements_dev.txt
 
@@ -236,8 +236,8 @@ MIT License - see [LICENSE](LICENSE) file.
 
 ## 💬 Support
 
-- 🐛 [Report Issues](https://github.com/tamaygz/hacs-stremio/issues)
-- 💬 [Discussions](https://github.com/tamaygz/hacs-stremio/discussions)
+- 🐛 [Report Issues](https://github.com/Kirill23/hacs-stremio/issues)
+- 💬 [Discussions](https://github.com/Kirill23/hacs-stremio/discussions)
 
 ---
 

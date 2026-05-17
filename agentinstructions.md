@@ -2,7 +2,7 @@
 
 > **Project**: Home Assistant HACS Integration for Stremio  
 > **Purpose**: These instructions guide the agent through implementing a production-ready integration  
-> **Author data**: for manifest or other project files use this author data: author: @tamaygz, project-url: https://github.com/tamaygz/hacs-stremio, integration-name: hacs-stremio
+> **Author data**: for manifest or other project files use this author data: author: @Kirill23, project-url: https://github.com/Kirill23/hacs-stremio, integration-name: hacs-stremio
 > **Last Updated**: 2026-01-17
 
 ---
