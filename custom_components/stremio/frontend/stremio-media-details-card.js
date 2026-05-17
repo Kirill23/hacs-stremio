@@ -973,7 +973,7 @@ class StremioMediaDetailsCard extends LitElement {
           if (season && episode) {
             displayItem.title = `${this._media.title} - S${season}E${episode}`;
           }
-          this._showStreamDialog(displayItem, streams);
+          this._showStreamDialog(displayItem, streams, season, episode);
         } else {
           console.log('[Media Details Card] No streams in response:', response);
           this._showNotification('No streams found for this title');
@@ -985,13 +985,15 @@ class StremioMediaDetailsCard extends LitElement {
       });
   }
 
-  _showStreamDialog(item, streams) {
+  _showStreamDialog(item, streams, season, episode) {
     if (window.StremioStreamDialog) {
       window.StremioStreamDialog.show(
         this.hass,
         item,
         streams,
-        this.config.apple_tv_entity
+        this.config.apple_tv_entity,
+        season != null ? season : null,
+        episode != null ? episode : null,
       );
     } else {
       // Fallback: Create dialog directly
@@ -1004,6 +1006,8 @@ class StremioMediaDetailsCard extends LitElement {
       dialog.mediaItem = item;
       dialog.streams = streams;
       dialog.appleTvEntity = this.config.apple_tv_entity;
+      dialog.season = season != null ? season : null;
+      dialog.episode = episode != null ? episode : null;
       dialog.open = true;
     }
   }

@@ -33,8 +33,12 @@ class StremioStreamDialog extends LitElement {
       mediaItem: { type: Object },
       streams: { type: Array },
       appleTvEntity: { type: String },
+      season: { type: Number },
+      episode: { type: Number },
       _loading: { type: Boolean },
       _copiedIndex: { type: Number },
+      _devices: { type: Array },
+      _selectedDevice: { type: String },
     };
   }
 
@@ -260,6 +264,60 @@ class StremioStreamDialog extends LitElement {
       .quality-badge.uhd {
         background: #9c27b0;
       }
+
+      .device-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0 12px;
+        border-bottom: 1px solid var(--divider-color);
+        margin-bottom: 8px;
+      }
+
+      .device-row label {
+        font-size: 0.9em;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+      }
+
+      .device-row select {
+        flex: 1;
+        background: var(--secondary-background-color);
+        color: var(--primary-text-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 0.9em;
+        cursor: pointer;
+      }
+
+      .stream-item.unplayable {
+        opacity: 0.5;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.7em;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+
+      .badge.cached {
+        background: #2e7d32;
+        color: white;
+      }
+
+      .action-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
     `;
   }
 
@@ -267,8 +325,12 @@ class StremioStreamDialog extends LitElement {
     super();
     this.open = false;
     this.streams = [];
+    this.season = null;
+    this.episode = null;
     this._loading = false;
     this._copiedIndex = -1;
+    this._devices = [];
+    this._selectedDevice = null;
     // Bind keyboard handler for cleanup
     this._handleKeyDown = this._handleKeyDown.bind(this);
   }
@@ -276,6 +338,7 @@ class StremioStreamDialog extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('keydown', this._handleKeyDown);
+    this._loadDevices();
   }
 
   // Lifecycle: cleanup timers and event listeners when element is removed
@@ -376,6 +439,49 @@ class StremioStreamDialog extends LitElement {
     return '';
   }
 
+  _loadDevices() {
+    if (!this.hass) return;
+    const entities = Object.keys(this.hass.states).filter(eid =>
+      eid.startsWith('media_player.')
+    );
+    this._devices = entities.map(eid => ({
+      entity_id: eid,
+      name: this.hass.states[eid].attributes.friendly_name || eid,
+    }));
+    if (!this._selectedDevice && this._devices.length > 0) {
+      this._selectedDevice = this._devices[0].entity_id;
+    }
+  }
+
+  _isCachedStream(stream) {
+    // Torrentio indicates debrid-cached streams in the title/name
+    const text = [
+      stream.name || '',
+      stream.title || '',
+    ].join(' ').toLowerCase();
+    if (text.includes('cached')) return true;
+    // Some addons use bingeGroup to signal cache availability
+    if (stream.behaviorHints?.bingeGroup) return true;
+    return false;
+  }
+
+  async _handlePlay(stream) {
+    if (!this._selectedDevice) return;
+    try {
+      await this.hass.callService('stremio', 'play_stream', {
+        stream_url: stream.url || '',
+        entity_id: this._selectedDevice,
+        media_id: this.mediaItem?.imdb_id || '',
+        media_type: this.mediaItem?.type || 'movie',
+        ...(this.season != null ? { season: this.season } : {}),
+        ...(this.episode != null ? { episode: this.episode } : {}),
+      });
+      this._close();
+    } catch (err) {
+      alert(`Could not play: ${err.message || err}`);
+    }
+  }
+
   _close() {
     this.open = false;
     this.dispatchEvent(new CustomEvent('close'));
@@ -412,10 +518,29 @@ class StremioStreamDialog extends LitElement {
           </div>
 
           <div class="dialog-content">
-            ${this._loading ? this._renderLoading() : 
+            ${this._renderDeviceRow()}
+            ${this._loading ? this._renderLoading() :
               this.streams.length > 0 ? this._renderStreams() : this._renderEmpty()}
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  _renderDeviceRow() {
+    if (this._devices.length === 0) return '';
+    return html`
+      <div class="device-row">
+        <label for="device-select">Play on:</label>
+        <select
+          id="device-select"
+          .value=${this._selectedDevice || ''}
+          @change=${(e) => (this._selectedDevice = e.target.value)}
+        >
+          ${this._devices.map(
+            (d) => html`<option value=${d.entity_id}>${d.name}</option>`
+          )}
+        </select>
       </div>
     `;
   }
@@ -589,9 +714,15 @@ class StremioStreamDialog extends LitElement {
     const isCopied = this._copiedIndex === index;
     const streamName = this._getStreamDisplayName(stream, index);
     const meta = this._getStreamMetadata(stream);
+    const isPlayable = stream.playable !== false;
+    const isCached = this._isCachedStream(stream);
 
     return html`
-      <div class="stream-item" role="listitem">
+      <div
+        class="stream-item ${isPlayable ? '' : 'unplayable'}"
+        role="listitem"
+        title=${isPlayable ? '' : 'Needs Real-Debrid or the Stremio Server companion add-on'}
+      >
         <div class="stream-info">
           <div class="stream-name">
             ${streamName}
@@ -600,6 +731,7 @@ class StremioStreamDialog extends LitElement {
                 ${stream.quality}
               </span>
             ` : ''}
+            ${isCached ? html`<span class="badge cached">CACHED</span>` : ''}
           </div>
           <div class="stream-meta">
             ${meta.addon ? html`
@@ -633,7 +765,16 @@ class StremioStreamDialog extends LitElement {
         </div>
 
         <div class="stream-actions" role="group" aria-label="Stream actions">
-          <button 
+          <button
+            class="action-btn"
+            ?disabled=${!isPlayable || !this._selectedDevice}
+            @click=${() => this._handlePlay(stream)}
+            aria-label="Play ${streamName} on selected device"
+          >
+            <ha-icon icon="mdi:play"></ha-icon>
+            Play
+          </button>
+          <button
             class="action-btn secondary ${isCopied ? 'success' : ''}"
             @click=${() => this._copyToClipboard(stream.url, index)}
             aria-label="${isCopied ? 'Copied to clipboard' : `Copy ${streamName} URL to clipboard`}"
@@ -641,8 +782,8 @@ class StremioStreamDialog extends LitElement {
             <ha-icon icon="${isCopied ? 'mdi:check' : 'mdi:content-copy'}"></ha-icon>
             ${isCopied ? 'Copied!' : 'Copy'}
           </button>
-          <button 
-            class="action-btn"
+          <button
+            class="action-btn secondary"
             @click=${() => this._playOnAppleTv(stream)}
             aria-label="Send ${streamName} to Apple TV"
           >
@@ -661,7 +802,7 @@ if (!customElements.get('stremio-stream-dialog')) {
 
 // Global helper to open the dialog
 window.StremioStreamDialog = {
-  show(hass, mediaItem, streams, appleTvEntity) {
+  show(hass, mediaItem, streams, appleTvEntity, season, episode) {
     let dialog = document.querySelector('stremio-stream-dialog');
     if (!dialog) {
       dialog = document.createElement('stremio-stream-dialog');
@@ -671,7 +812,11 @@ window.StremioStreamDialog = {
     dialog.mediaItem = mediaItem;
     dialog.streams = streams || [];
     dialog.appleTvEntity = appleTvEntity;
+    dialog.season = season != null ? season : null;
+    dialog.episode = episode != null ? episode : null;
     dialog.open = true;
+    // Refresh device list each time the dialog opens (hass may have updated)
+    dialog._loadDevices();
     return dialog;
   },
 
