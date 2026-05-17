@@ -98,3 +98,5 @@ config/custom_components
 config/.ha_run.lock
 .tldr/languages.json
 .tldr/
+# Git worktrees (per-feature isolated workspaces)
+.worktrees/
