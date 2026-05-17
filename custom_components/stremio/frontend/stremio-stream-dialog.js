@@ -454,15 +454,15 @@ class StremioStreamDialog extends LitElement {
   }
 
   _isCachedStream(stream) {
-    // Torrentio indicates debrid-cached streams in the title/name
+    // Torrentio indicates debrid-cached streams by including "cached"
+    // in the stream name or title (e.g. "RD+ Cached"). behaviorHints.
+    // bingeGroup is unrelated — it marks series streams for autoplay
+    // grouping — so we do not treat it as a cache signal.
     const text = [
       stream.name || '',
       stream.title || '',
     ].join(' ').toLowerCase();
-    if (text.includes('cached')) return true;
-    // Some addons use bingeGroup to signal cache availability
-    if (stream.behaviorHints?.bingeGroup) return true;
-    return false;
+    return text.includes('cached');
   }
 
   async _handlePlay(stream) {
