@@ -453,6 +453,13 @@ async def test_update_library_progress_writes_correct_payload(
     assert change["state"]["duration"] == 8400.0
     # Below WATCHED_THRESHOLD -> not flagged watched
     assert change["state"]["flaggedWatched"] == 0
+    # lastWatched and _mtime are ISO timestamps ending in Z; assert shape
+    # (presence + format) so a refactor cannot silently drop them — Stremio
+    # mobile apps require these fields to surface continue-watching state.
+    assert change["state"]["lastWatched"].endswith("Z")
+    assert "T" in change["state"]["lastWatched"]
+    assert change["_mtime"].endswith("Z")
+    assert "T" in change["_mtime"]
 
 
 @pytest.mark.asyncio
