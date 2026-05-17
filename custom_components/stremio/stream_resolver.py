@@ -17,10 +17,7 @@ Torrentio config; or install the companion add-on).
 
 from __future__ import annotations
 
-import logging
 from typing import Any
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class StreamUnplayableError(Exception):
@@ -52,8 +49,10 @@ def resolve_stream_url(
             infoHash + torrent server combination is available.
     """
     direct_url = stream.get("url")
-    if direct_url and isinstance(direct_url, str) and direct_url.startswith(
-        ("http://", "https://")
+    if (
+        direct_url
+        and isinstance(direct_url, str)
+        and direct_url.startswith(("http://", "https://"))
     ):
         return direct_url
 

@@ -54,10 +54,7 @@ def test_resolve_prefers_direct_url_over_infohash() -> None:
         "infoHash": "abc123",
     }
     server = "http://homeassistant.local:11470"
-    assert (
-        resolve_stream_url(stream, server)
-        == "https://debrid.example.com/file.mp4"
-    )
+    assert resolve_stream_url(stream, server) == "https://debrid.example.com/file.mp4"
 
 
 def test_resolve_raises_when_neither_url_nor_infohash() -> None:
@@ -90,9 +87,7 @@ def test_is_stream_playable_false_for_infohash_without_server() -> None:
 
 
 def test_is_stream_playable_true_for_infohash_with_server() -> None:
-    assert (
-        is_stream_playable({"infoHash": "abc"}, "http://server:11470") is True
-    )
+    assert is_stream_playable({"infoHash": "abc"}, "http://server:11470") is True
 
 
 def test_is_stream_playable_false_for_empty_dict() -> None:
