@@ -33,7 +33,10 @@ try:
     PYATV_AVAILABLE = True
 except (ImportError, Exception) as e:
     PYATV_AVAILABLE = False
-    _LOGGER.warning("pyatv not installed or not compatible, AirPlay handover will not be available: %s", e)
+    _LOGGER.warning(
+        "pyatv not installed or not compatible, AirPlay handover will not be available: %s",
+        e,
+    )
 
 
 class HandoverMethod(Enum):
@@ -532,17 +535,14 @@ class HandoverManager:
         try:
             vlc_url = self.generate_vlc_deep_link(stream_url, title, subtitle_url)
 
-            # Use media_player.play_media to open VLC with the stream
-            # The Apple TV integration will handle opening VLC via deep link
-            await self.hass.services.async_call(
-                "media_player",
-                "play_media",
-                {
-                    "entity_id": device_entity_id,
-                    "media_content_type": "url",
-                    "media_content_id": vlc_url,
-                },
-                blocking=True,
+            # Delegate to PlaybackManager for consistent play_media dispatch
+            from .playback_manager import PlaybackManager  # local import to avoid cycle
+
+            playback = PlaybackManager(self.hass)
+            await playback.play(
+                entity_id=device_entity_id,
+                stream_url=vlc_url,
+                media_info={"title": title or ""},
             )
 
             _LOGGER.info("Successfully sent VLC deep link to '%s'", device_entity_id)
@@ -603,7 +603,6 @@ class HandoverManager:
 
         # Detect stream format and check compatibility
         stream_format = self.detect_stream_format(stream_url)
-        content_type = self.SUPPORTED_CONTENT_TYPES.get(stream_format, "video/mp4")
 
         if stream_format not in (StreamFormat.HLS, StreamFormat.MP4):
             _LOGGER.warning(
@@ -614,17 +613,14 @@ class HandoverManager:
             )
 
         try:
-            # For direct playback, use the appropriate content type
-            # HLS streams work better with application/x-mpegURL
-            await self.hass.services.async_call(
-                "media_player",
-                "play_media",
-                {
-                    "entity_id": device_entity_id,
-                    "media_content_type": content_type,
-                    "media_content_id": stream_url,
-                },
-                blocking=True,
+            # Delegate to PlaybackManager for consistent play_media dispatch
+            from .playback_manager import PlaybackManager  # local import to avoid cycle
+
+            playback = PlaybackManager(self.hass)
+            await playback.play(
+                entity_id=device_entity_id,
+                stream_url=stream_url,
+                media_info={},
             )
 
             _LOGGER.info(
