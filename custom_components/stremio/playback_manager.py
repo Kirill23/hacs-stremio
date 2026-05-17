@@ -36,6 +36,8 @@ class PlaybackManager:
         entity_id: str,
         stream_url: str,
         media_info: dict[str, Any],
+        content_type_override: str | None = None,
+        blocking: bool = False,
     ) -> None:
         """Hand a stream URL to the named media_player entity.
 
@@ -44,6 +46,17 @@ class PlaybackManager:
             stream_url: HTTP(S) URL the device will fetch and play.
             media_info: Optional metadata. Recognized keys: title, poster,
                 year, type ("movie" or "series"), season, episode.
+            content_type_override: If set, use this exact string as
+                media_content_type (e.g. "url" to trigger the Apple TV
+                integration's app-launch path, or a specific MIME like
+                "application/x-mpegURL"). When ``None``, defaults to
+                ``"tvshow"`` for series and ``"video"`` otherwise.
+            blocking: Pass-through to ``hass.services.async_call``. The
+                default ``False`` is right for the normal play_stream
+                flow (fire-and-forget; progress sync tracks state from
+                state-change events). Set ``True`` for callers like the
+                Apple TV handover that need media_player errors to
+                propagate so existing except blocks can handle them.
 
         Raises:
             ServiceValidationError: entity does not exist, is not a
@@ -53,7 +66,10 @@ class PlaybackManager:
 
         title = media_info.get("title") or ""
         poster = media_info.get("poster") or ""
-        media_type = "tvshow" if media_info.get("type") == "series" else "video"
+        if content_type_override is not None:
+            media_type = content_type_override
+        else:
+            media_type = "tvshow" if media_info.get("type") == "series" else "video"
 
         extra: dict[str, Any] = {}
         if title:
@@ -79,7 +95,7 @@ class PlaybackManager:
             "media_player",
             "play_media",
             payload,
-            blocking=False,
+            blocking=blocking,
         )
 
     def _validate_entity(self, entity_id: str) -> None:

@@ -94,3 +94,42 @@ async def test_play_dispatches_with_blocking_false(mock_hass) -> None:
     )
     _, kwargs = mock_hass.services.async_call.call_args
     assert kwargs.get("blocking") is False
+
+
+async def test_play_content_type_override(mock_hass) -> None:
+    """content_type_override replaces the default 'video' selection.
+
+    Required for Apple TV's VLC handover, which needs
+    media_content_type='url' to trigger the Apple TV integration's
+    app-launch path instead of the streaming path.
+    """
+    mock_hass.states.get.return_value = _entity_state("idle")
+    mgr = PlaybackManager(mock_hass)
+    await mgr.play(
+        entity_id="media_player.apple_tv",
+        stream_url="vlc://x-callback-url/stream?url=...",
+        media_info={"title": "X"},
+        content_type_override="url",
+    )
+    args, _ = mock_hass.services.async_call.call_args
+    payload = args[2]
+    assert payload["media_content_type"] == "url"
+
+
+async def test_play_blocking_true_passes_through(mock_hass) -> None:
+    """blocking=True must be passed through to async_call.
+
+    Required for callers (e.g. the Apple TV handover) that rely on
+    media_player service errors propagating so their except blocks
+    can convert them into HandoverError.
+    """
+    mock_hass.states.get.return_value = _entity_state("idle")
+    mgr = PlaybackManager(mock_hass)
+    await mgr.play(
+        entity_id="media_player.tv",
+        stream_url="https://example.com/x.mp4",
+        media_info={},
+        blocking=True,
+    )
+    _, kwargs = mock_hass.services.async_call.call_args
+    assert kwargs.get("blocking") is True

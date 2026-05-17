@@ -535,7 +535,11 @@ class HandoverManager:
         try:
             vlc_url = self.generate_vlc_deep_link(stream_url, title, subtitle_url)
 
-            # Delegate to PlaybackManager for consistent play_media dispatch
+            # Delegate to PlaybackManager for consistent play_media dispatch.
+            # VLC deep links require content_type="url" so the Apple TV HA
+            # integration routes through launch_app() (the URL-scheme handoff)
+            # rather than treating the vlc:// URL as a streamable file.
+            # blocking=True so HandoverError can wrap any media_player failure.
             from .playback_manager import PlaybackManager  # local import to avoid cycle
 
             playback = PlaybackManager(self.hass)
@@ -543,6 +547,8 @@ class HandoverManager:
                 entity_id=device_entity_id,
                 stream_url=vlc_url,
                 media_info={"title": title or ""},
+                content_type_override="url",
+                blocking=True,
             )
 
             _LOGGER.info("Successfully sent VLC deep link to '%s'", device_entity_id)
@@ -613,7 +619,16 @@ class HandoverManager:
             )
 
         try:
-            # Delegate to PlaybackManager for consistent play_media dispatch
+            # Delegate to PlaybackManager for consistent play_media dispatch.
+            # Pass the specific MIME content_type so receivers (Chromecast,
+            # smart TVs) pick the right playback path — HLS streams need
+            # "application/x-mpegURL", MP4 streams need "video/mp4". A
+            # generic "video" works on Apple TV (pyatv ignores the hint)
+            # but loses signal for other media_player platforms that route
+            # this delegate may serve in future.
+            # blocking=True so existing except block can catch service errors.
+            content_type = self.SUPPORTED_CONTENT_TYPES.get(stream_format, "video/mp4")
+
             from .playback_manager import PlaybackManager  # local import to avoid cycle
 
             playback = PlaybackManager(self.hass)
@@ -621,6 +636,8 @@ class HandoverManager:
                 entity_id=device_entity_id,
                 stream_url=stream_url,
                 media_info={},
+                content_type_override=content_type,
+                blocking=True,
             )
 
             _LOGGER.info(
