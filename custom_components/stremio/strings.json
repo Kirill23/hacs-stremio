@@ -96,5 +96,19 @@
         }
       }
     }
+  },
+  "exceptions": {
+    "stream_unplayable": {
+      "message": "This Stremio stream cannot be played. Either configure Real-Debrid (or another debrid service) in your Torrentio addon URL, or install the Stremio Server companion add-on. See the integration setup docs."
+    },
+    "entity_not_media_player": {
+      "message": "Entity {entity_id} is not a media_player entity."
+    },
+    "entity_not_found": {
+      "message": "Entity {entity_id} does not exist."
+    },
+    "entity_unavailable": {
+      "message": "Entity {entity_id} is {state} and cannot be played to."
+    }
   }
 }
