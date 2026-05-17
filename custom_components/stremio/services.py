@@ -871,9 +871,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ) or None
 
         try:
-            playable_url = resolve_stream_url(
-                {"url": stream_url}, torrent_server_url
-            )
+            playable_url = resolve_stream_url({"url": stream_url}, torrent_server_url)
         except StreamUnplayableError as err:
             raise ServiceValidationError(
                 str(err),
