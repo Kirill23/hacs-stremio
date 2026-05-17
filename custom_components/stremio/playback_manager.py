@@ -72,7 +72,9 @@ class PlaybackManager:
         if extra:
             payload["extra"] = extra
 
-        _LOGGER.info("Playing %r on %s (type=%s)", title or stream_url, entity_id, media_type)
+        _LOGGER.info(
+            "Playing %r on %s (type=%s)", title or stream_url, entity_id, media_type
+        )
         await self._hass.services.async_call(
             "media_player",
             "play_media",

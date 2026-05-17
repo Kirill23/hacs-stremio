@@ -83,8 +83,8 @@ async def test_play_raises_when_entity_unavailable(mock_hass) -> None:
         )
 
 
-async def test_play_does_not_block_on_service_call(mock_hass) -> None:
-    """play() returns after async_call resolves; it does not await playback start."""
+async def test_play_dispatches_with_blocking_false(mock_hass) -> None:
+    """play() must use blocking=False so it doesn't await device readiness."""
     mock_hass.states.get.return_value = _entity_state("idle")
     mgr = PlaybackManager(mock_hass)
     await mgr.play(
@@ -92,4 +92,5 @@ async def test_play_does_not_block_on_service_call(mock_hass) -> None:
         stream_url="https://example.com/x.mp4",
         media_info={},
     )
-    # No assertion on blocking — passing without timeout is the assertion.
+    _, kwargs = mock_hass.services.async_call.call_args
+    assert kwargs.get("blocking") is False
