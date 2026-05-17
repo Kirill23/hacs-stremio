@@ -549,6 +549,57 @@ class TestGetRecommendationsService:
         )
 
 
+class TestGetStreamsPlayableFlag:
+    """Tests for the playable flag annotation in get_streams."""
+
+    @pytest.mark.asyncio
+    async def test_get_streams_annotates_playable_flag(
+        self, hass: HomeAssistant, mock_coordinator
+    ):
+        """Each stream in the response gets a 'playable' bool."""
+        from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+        fake_streams = [
+            {"name": "Direct URL", "url": "https://debrid/x.mp4"},
+            {"name": "Magnet only", "infoHash": "abc123"},
+        ]
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={"email": "test@example.com", "password": "test"},
+            options={
+                "addon_stream_order": "",
+                "stream_quality_preference": "any",
+            },
+            entry_id="test_entry_playable",
+        )
+        entry.add_to_hass(hass)
+
+        mock_client = AsyncMock()
+        mock_client.async_get_streams = AsyncMock(return_value=fake_streams)
+
+        hass.data[DOMAIN] = {
+            entry.entry_id: {
+                "coordinator": mock_coordinator,
+                "client": mock_client,
+            }
+        }
+
+        await async_setup_services(hass)
+
+        result = await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_STREAMS,
+            {"media_id": "tt001", "media_type": "movie"},
+            blocking=True,
+            return_response=True,
+        )
+
+        streams = result["streams"]
+        assert streams[0]["playable"] is True
+        assert streams[1]["playable"] is False
+
+
 class TestGetSimilarContentService:
     """Tests for the get_similar_content service."""
 

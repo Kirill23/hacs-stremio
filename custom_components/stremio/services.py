@@ -21,6 +21,7 @@ from .const import (
     CONF_APPLE_TV_IDENTIFIER,
     CONF_HANDOVER_METHOD,
     CONF_STREAM_QUALITY_PREFERENCE,
+    CONF_TORRENT_SERVER_URL,
     DEFAULT_HANDOVER_METHOD,
     DEFAULT_STREAM_QUALITY_PREFERENCE,
     DOMAIN,
@@ -41,6 +42,7 @@ from .const import (
     SERVICE_SEARCH_LIBRARY,
 )
 from .coordinator import StremioDataUpdateCoordinator
+from .stream_resolver import is_stream_playable
 from .stremio_client import StremioClient, StremioConnectionError
 
 _LOGGER = logging.getLogger(__name__)
@@ -314,6 +316,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 CONF_STREAM_QUALITY_PREFERENCE, DEFAULT_STREAM_QUALITY_PREFERENCE
             )
 
+        torrent_server_url = (
+            entry.options.get(CONF_TORRENT_SERVER_URL) if entry else None
+        ) or None
+
         try:
             streams = await client.async_get_streams(
                 media_id=media_id,
@@ -324,9 +330,17 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 quality_preference=quality_preference,
             )
 
+            annotated = [
+                {
+                    **stream,
+                    "playable": is_stream_playable(stream, torrent_server_url),
+                }
+                for stream in streams
+            ]
+
             return {
-                "streams": streams,
-                "count": len(streams),
+                "streams": annotated,
+                "count": len(annotated),
             }
 
         except StremioConnectionError as err:
