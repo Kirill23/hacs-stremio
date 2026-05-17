@@ -333,6 +333,85 @@ class StremioClient:
             _LOGGER.exception("Failed to get library")
             raise StremioConnectionError(f"Failed to get library: {err}") from err
 
+    async def async_update_library_progress(
+        self,
+        media_id: str,
+        media_type: str,
+        position_seconds: float,
+        duration_seconds: float,
+    ) -> None:
+        """Update Stremio's continue-watching state for a library item.
+
+        Writes a libraryItem change via datastorePut in the same shape the
+        Stremio mobile apps write. The Stremio web/mobile apps poll the
+        datastore and pick up these updates so progress syncs across devices.
+
+        Args:
+            media_id: IMDb-style content ID (e.g. "tt1375666"). Used as _id.
+            media_type: "movie" or "series".
+            position_seconds: Current playback position in seconds.
+            duration_seconds: Total content duration in seconds. May be 0
+                if the player hasn't reported duration yet; the watched
+                threshold check is skipped in that case.
+
+        Raises:
+            StremioAuthError: Authentication failed.
+            StremioConnectionError: Network or API failure.
+        """
+        from .const import WATCHED_THRESHOLD
+
+        if not self._auth_key:
+            raise StremioConnectionError("Client not authenticated")
+
+        watched = (
+            1
+            if duration_seconds > 0
+            and position_seconds / duration_seconds >= WATCHED_THRESHOLD
+            else 0
+        )
+
+        payload = {
+            "authKey": self._auth_key,
+            "collection": COLLECTION_LIBRARY_ITEM,
+            "changes": [
+                {
+                    "_id": media_id,
+                    "type": media_type,
+                    "state": {
+                        "timeOffset": position_seconds,
+                        "duration": duration_seconds,
+                        "lastWatched": _utc_iso_ms_z(),
+                        "flaggedWatched": watched,
+                    },
+                    "_mtime": _utc_iso_ms_z(),
+                }
+            ],
+        }
+
+        try:
+            session = await self._get_session()
+            async with session.post(
+                STREMIO_DATASTORE_PUT_URL,
+                json=payload,
+                timeout=ClientTimeout(total=10),
+            ) as response:
+                if response.status == 401:
+                    raise StremioAuthError("Auth key rejected during progress write")
+                response.raise_for_status()
+                _LOGGER.debug(
+                    "Progress write OK: media_id=%s position=%.1f/%.1f watched=%d",
+                    media_id,
+                    position_seconds,
+                    duration_seconds,
+                    watched,
+                )
+        except StremioAuthError:
+            raise
+        except ClientError as err:
+            raise StremioConnectionError(
+                f"Failed to write progress for {media_id}: {err}"
+            ) from err
+
     async def async_get_continue_watching(
         self, limit: int = 100
     ) -> list[dict[str, Any]]:
@@ -825,7 +904,7 @@ class StremioClient:
         # behaviorHints.filename: "Movie.2024.2160p.HEVC.DV.Atmos.mkv"
         behavior_hints = stream.get("behaviorHints", {}) or {}
         filename = behavior_hints.get("filename", "") or ""
-        
+
         text_parts = [
             stream.get("name", ""),
             stream.get("title", ""),
@@ -1609,7 +1688,11 @@ class StremioClient:
                     except (AttributeError, TypeError, KeyError) as err:
                         _LOGGER.debug(
                             "Error processing catalog item %s: %s",
-                            meta.get("id", "unknown") if isinstance(meta, dict) else "unknown",
+                            (
+                                meta.get("id", "unknown")
+                                if isinstance(meta, dict)
+                                else "unknown"
+                            ),
                             err,
                         )
                         continue
@@ -1726,9 +1809,7 @@ class StremioClient:
         if skip > 0:
             extras.append(f"skip={skip}")
         extras_path = "&".join(extras)
-        search_url = (
-            f"{CINEMETA_BASE_URL}/catalog/{media_type}/imdb/{extras_path}.json"
-        )
+        search_url = f"{CINEMETA_BASE_URL}/catalog/{media_type}/imdb/{extras_path}.json"
 
         try:
             session = await self._get_session()
@@ -1762,9 +1843,7 @@ class StremioClient:
                     if not isinstance(meta, dict):
                         continue
                     try:
-                        results.append(
-                            self._process_catalog_meta(meta, media_type)
-                        )
+                        results.append(self._process_catalog_meta(meta, media_type))
                     except Exception as err:
                         _LOGGER.debug(
                             "Skipping malformed search result for '%s': %s",

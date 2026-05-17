@@ -408,3 +408,84 @@ class TestGetStreamsIntegration:
             assert result[0]["title"] == "1080p BluRay"
             # 720p should still be included
             assert len(result) == 2
+
+
+@pytest.mark.asyncio
+async def test_update_library_progress_writes_correct_payload(
+    aioresponses_mock,
+) -> None:
+    """Progress update writes a datastorePut payload matching Stremio mobile."""
+    from aioresponses import CallbackResult
+    from custom_components.stremio.stremio_client import (
+        STREMIO_DATASTORE_PUT_URL,
+        StremioClient,
+    )
+    from aiohttp import ClientSession
+
+    captured: dict = {}
+
+    def _capture(url: str, **kwargs) -> CallbackResult:
+        captured["payload"] = kwargs.get("json")
+        return CallbackResult(payload={"success": True}, status=200)
+
+    aioresponses_mock.post(STREMIO_DATASTORE_PUT_URL, callback=_capture, repeat=True)
+
+    async with ClientSession() as session:
+        client = StremioClient(email="e@x.com", password="p", session=session)
+        client._auth_key = "fake-auth-key"  # bypass login for unit test
+
+        await client.async_update_library_progress(
+            media_id="tt1375666",
+            media_type="movie",
+            position_seconds=1234.5,
+            duration_seconds=8400.0,
+        )
+
+    payload = captured["payload"]
+    assert payload["authKey"] == "fake-auth-key"
+    assert payload["collection"] == "libraryItem"
+    # changes is a list with one entry
+    assert isinstance(payload["changes"], list) and len(payload["changes"]) == 1
+    change = payload["changes"][0]
+    assert change["_id"] == "tt1375666"
+    assert change["type"] == "movie"
+    assert change["state"]["timeOffset"] == 1234.5
+    assert change["state"]["duration"] == 8400.0
+    # Below WATCHED_THRESHOLD -> not flagged watched
+    assert change["state"]["flaggedWatched"] == 0
+
+
+@pytest.mark.asyncio
+async def test_update_library_progress_flags_watched_at_threshold(
+    aioresponses_mock,
+) -> None:
+    """When position/duration >= WATCHED_THRESHOLD, flaggedWatched is set."""
+    from aioresponses import CallbackResult
+    from custom_components.stremio.stremio_client import (
+        STREMIO_DATASTORE_PUT_URL,
+        StremioClient,
+    )
+    from aiohttp import ClientSession
+
+    captured: dict = {}
+
+    def _capture(url: str, **kwargs) -> CallbackResult:
+        captured["payload"] = kwargs.get("json")
+        return CallbackResult(payload={"success": True}, status=200)
+
+    aioresponses_mock.post(STREMIO_DATASTORE_PUT_URL, callback=_capture, repeat=True)
+
+    async with ClientSession() as session:
+        client = StremioClient(email="e@x.com", password="p", session=session)
+        client._auth_key = "fake-auth-key"
+
+        # 95% through -> above WATCHED_THRESHOLD (0.9)
+        await client.async_update_library_progress(
+            media_id="tt1375666",
+            media_type="movie",
+            position_seconds=7980.0,
+            duration_seconds=8400.0,
+        )
+
+    change = captured["payload"]["changes"][0]
+    assert change["state"]["flaggedWatched"] == 1

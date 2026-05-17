@@ -22,6 +22,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aioresponses import aioresponses
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 
@@ -275,8 +276,10 @@ def mock_coordinator(mock_stremio_client):
 def mock_config_entry(hass: HomeAssistant):
     """Create a mock config entry."""
     if sys.platform == "win32":
-        pytest.skip("Skipping on Windows - pytest-homeassistant-custom-component not available")
-    
+        pytest.skip(
+            "Skipping on Windows - pytest-homeassistant-custom-component not available"
+        )
+
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     entry = MockConfigEntry(
@@ -307,8 +310,10 @@ def mock_hass(hass: HomeAssistant):
     and adds additional mock data structures needed by the Stremio integration tests.
     """
     if sys.platform == "win32":
-        pytest.skip("Skipping on Windows - pytest-homeassistant-custom-component not available")
-    
+        pytest.skip(
+            "Skipping on Windows - pytest-homeassistant-custom-component not available"
+        )
+
     hass.data = hass.data if hass.data else {}
     return hass
 
@@ -331,6 +336,13 @@ def mock_pyatv():
         mock.connect = AsyncMock()
 
         yield mock
+
+
+@pytest.fixture
+def aioresponses_mock():
+    """aioresponses context manager exposed as a fixture."""
+    with aioresponses() as m:
+        yield m
 
 
 # ============================================================================
