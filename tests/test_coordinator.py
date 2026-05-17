@@ -255,3 +255,22 @@ async def test_coordinator_partial_failure(hass: HomeAssistant, mock_config_entr
     # Should raise UpdateFailed due to unexpected error
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
+
+
+@pytest.mark.asyncio
+async def test_coordinator_owns_progress_sync_manager(hass) -> None:
+    """Coordinator instantiates a ProgressSyncManager exposed as .progress_sync."""
+    from unittest.mock import MagicMock
+    from custom_components.stremio.coordinator import (
+        StremioDataUpdateCoordinator,
+    )
+    from custom_components.stremio.progress_sync import ProgressSyncManager
+
+    client = MagicMock()
+    entry = MagicMock()
+    entry.options = {}
+    coord = StremioDataUpdateCoordinator(hass=hass, client=client, entry=entry)
+
+    assert isinstance(coord.progress_sync, ProgressSyncManager)
+    assert coord.register_playback_session  # callable
+    assert coord.unregister_playback_session  # callable

@@ -129,6 +129,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Perform initial data fetch
     await coordinator.async_config_entry_first_refresh()
 
+    # Start progress sync listener (idempotent; respects options flag)
+    coordinator.start_progress_sync()
+
     # Store coordinator and client in hass.data
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
@@ -167,6 +170,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Remove data from hass.data and cleanup client
     if unload_ok:
+        coordinator = hass.data[DOMAIN].get(entry.entry_id, {}).get("coordinator")
+        if coordinator:
+            coordinator.stop_progress_sync()
         data = hass.data[DOMAIN].pop(entry.entry_id)
 
         # Close the client to cleanup any resources

@@ -21,9 +21,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     CONF_PLAYER_SCAN_INTERVAL,
     CONF_POLLING_GATE_ENTITIES,
+    CONF_PROGRESS_SYNC_ENABLED,
     DEFAULT_CONTINUE_WATCHING_LIMIT,
     DEFAULT_PLAYER_SCAN_INTERVAL,
     DEFAULT_POLLING_GATE_ENTITIES,
+    DEFAULT_PROGRESS_SYNC_ENABLED,
     DOMAIN,
     EVENT_NEW_CONTENT,
     EVENT_NEW_EPISODES,
@@ -32,6 +34,7 @@ from .const import (
     EVENT_RESUME_AVAILABLE,
     POLLING_GATE_IDLE_INTERVAL,
 )
+from .progress_sync import ProgressSyncManager
 from .stremio_client import StremioAuthError, StremioClient, StremioConnectionError
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,6 +67,8 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         self.client = client
         self._entry_param = entry  # Store temporarily
+        self.progress_sync = ProgressSyncManager(hass, client)
+        self._progress_sync_started = False
         self._previous_watching: dict[str, Any] | None = None
         self._previous_library_count: int = 0
         self._previous_series_episodes: dict[str, tuple[int, int]] = (
@@ -73,7 +78,9 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._state_change_unsub: list[Any] = []
         self._is_polling_gated: bool = False
         self._current_stream_url: str | None = None  # Track current stream URL
-        self._delayed_refresh_task: asyncio.Task | None = None  # Track pending refresh task
+        self._delayed_refresh_task: asyncio.Task | None = (
+            None  # Track pending refresh task
+        )
 
         # Get scan interval from options or use default
         self._configured_scan_interval = entry.options.get(
@@ -319,7 +326,7 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         async def _delayed_refresh(task_ref_holder: list[asyncio.Task]) -> None:
             """Refresh coordinator data after playback has started.
-            
+
             Args:
                 task_ref_holder: List that will contain reference to this task for race condition prevention
             """
@@ -333,7 +340,9 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # Task was cancelled during shutdown or replaced, this is expected
                 _LOGGER.debug("Scheduled refresh cancelled")
             except Exception as err:
-                _LOGGER.warning("Error during scheduled refresh after playback: %s", err)
+                _LOGGER.warning(
+                    "Error during scheduled refresh after playback: %s", err
+                )
             finally:
                 # Only clear the reference if this task is still the current one
                 # This prevents race condition where a new task was created while this one was finishing
@@ -910,3 +919,52 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             progress_percent,
         )
         self.hass.bus.async_fire(EVENT_RESUME_AVAILABLE, event_data)
+
+    # ------------------------------------------------------------------
+    # Progress sync lifecycle
+    # ------------------------------------------------------------------
+
+    def start_progress_sync(self) -> None:
+        """Start the progress-sync listener if enabled in options.
+
+        Called from async_setup_entry after the first successful refresh.
+        Idempotent.
+        """
+        if self._progress_sync_started:
+            return
+        if not self._progress_sync_enabled():
+            _LOGGER.info("Progress sync disabled via options; not starting listener")
+            return
+        self.progress_sync.start()
+        self._progress_sync_started = True
+
+    def stop_progress_sync(self) -> None:
+        """Stop the listener (called on unload). Idempotent."""
+        if self._progress_sync_started:
+            self.progress_sync.stop()
+            self._progress_sync_started = False
+
+    def _progress_sync_enabled(self) -> bool:
+        entry = self._entry_param  # set in __init__
+        return bool(
+            entry.options.get(CONF_PROGRESS_SYNC_ENABLED, DEFAULT_PROGRESS_SYNC_ENABLED)
+        )
+
+    def register_playback_session(
+        self,
+        entity_id: str,
+        media_id: str,
+        media_type: str,
+        media_content_id: str,
+    ) -> None:
+        """Public registration API; called from services.handle_play_stream."""
+        self.progress_sync.register_session(
+            entity_id=entity_id,
+            media_id=media_id,
+            media_type=media_type,
+            media_content_id=media_content_id,
+        )
+
+    def unregister_playback_session(self, entity_id: str) -> None:
+        """Unregister a playback session by entity_id."""
+        self.progress_sync.unregister_session(entity_id)
