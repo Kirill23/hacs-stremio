@@ -60,6 +60,7 @@ class ProgressSyncManager:
         _LOGGER.debug("ProgressSyncManager started")
 
     def stop(self) -> None:
+        """Unsubscribe from state changes and drop all sessions. Idempotent."""
         if self._unsub_state_listener is not None:
             self._unsub_state_listener()
             self._unsub_state_listener = None
@@ -72,6 +73,10 @@ class ProgressSyncManager:
         media_type: str,
         media_content_id: str,
     ) -> None:
+        """Start tracking playback on entity_id.
+
+        Replaces any existing session for the same entity_id.
+        """
         self._sessions[entity_id] = PlaybackSession(
             media_id=media_id,
             media_type=media_type,
@@ -85,6 +90,7 @@ class ProgressSyncManager:
         )
 
     def unregister_session(self, entity_id: str) -> None:
+        """Stop tracking playback on entity_id. Safe to call twice."""
         if entity_id in self._sessions:
             del self._sessions[entity_id]
             _LOGGER.debug("Unregistered session: entity=%s", entity_id)
