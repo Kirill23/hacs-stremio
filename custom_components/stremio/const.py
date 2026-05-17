@@ -46,6 +46,22 @@ CONF_ADDON_STREAM_ORDER: Final = "addon_stream_order"
 CONF_STREAM_QUALITY_PREFERENCE: Final = "stream_quality_preference"
 CONF_RESET_ADDON_ORDER: Final = "reset_addon_order"
 
+# Torrent server (companion add-on)
+CONF_TORRENT_SERVER_URL: Final = "torrent_server_url"
+DEFAULT_TORRENT_SERVER_URL: Final = ""
+STREMIO_SERVER_DEFAULT_PORT: Final = 11470
+STREMIO_SERVER_PROBE_TIMEOUT: Final = 2.0  # seconds, for options-flow auto-detect
+STREMIO_SERVER_PROBE_HOSTS: Final[tuple[str, ...]] = (
+    "homeassistant.local",
+    "127.0.0.1",
+)
+
+# Progress sync
+CONF_PROGRESS_SYNC_ENABLED: Final = "progress_sync_enabled"
+DEFAULT_PROGRESS_SYNC_ENABLED: Final = True
+PROGRESS_SYNC_INTERVAL_SECONDS: Final = 30
+WATCHED_THRESHOLD: Final = 0.9  # mark watched when position/duration >= this
+
 # Options defaults
 DEFAULT_PLAYER_SCAN_INTERVAL: Final = 30  # seconds
 DEFAULT_LIBRARY_SCAN_INTERVAL: Final = 300  # seconds (5 minutes)
@@ -176,6 +192,7 @@ SERVICE_GET_UPCOMING_EPISODES: Final = "get_upcoming_episodes"
 SERVICE_GET_RECOMMENDATIONS: Final = "get_recommendations"
 SERVICE_GET_SIMILAR_CONTENT: Final = "get_similar_content"
 SERVICE_GET_ADDONS: Final = "get_addons"
+SERVICE_PLAY_STREAM: Final = "play_stream"
 
 # API Constants
 API_BASE_URL: Final = "https://api.strem.io"
