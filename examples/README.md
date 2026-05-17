@@ -65,4 +65,4 @@ Some automations require specific configurations:
 
 ## Support
 
-Report issues on GitHub: https://github.com/tamaygz/hacs-stremio/issues
+Report issues on GitHub: https://github.com/Kirill23/hacs-stremio/issues

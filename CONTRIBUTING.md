@@ -76,7 +76,7 @@ See [docs/development.md](docs/development.md) for detailed setup instructions.
 
 ```bash
 # Clone and setup
-git clone https://github.com/tamaygz/hacs-stremio.git
+git clone https://github.com/Kirill23/hacs-stremio.git
 cd hacs-stremio
 ./scripts/setup_dev_environment.sh
 
@@ -267,8 +267,8 @@ Include:
 
 ## Questions?
 
-- Open a [Discussion](https://github.com/tamaygz/hacs-stremio/discussions)
-- Check existing [Issues](https://github.com/tamaygz/hacs-stremio/issues)
+- Open a [Discussion](https://github.com/Kirill23/hacs-stremio/discussions)
+- Check existing [Issues](https://github.com/Kirill23/hacs-stremio/issues)
 
 ---
 

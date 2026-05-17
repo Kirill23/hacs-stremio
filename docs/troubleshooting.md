@@ -58,7 +58,7 @@ Restart Home Assistant and check logs.
 
 ## Getting Help
 
-- **GitHub Issues:** https://github.com/tamaygz/hacs-stremio/issues
+- **GitHub Issues:** https://github.com/Kirill23/hacs-stremio/issues
 - **Home Assistant Community:** Search or post in the Community forum
 - **Documentation:** Check all docs in `/docs/` folder
 

@@ -18,7 +18,7 @@ The fastest way to get started is using VS Code's Dev Containers:
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/tamaygz/hacs-stremio.git
+   git clone https://github.com/Kirill23/hacs-stremio.git
    cd hacs-stremio
    ```
 
@@ -57,7 +57,7 @@ For development without Docker:
 1. **Clone and enter the repository:**
 
    ```bash
-   git clone https://github.com/tamaygz/hacs-stremio.git
+   git clone https://github.com/Kirill23/hacs-stremio.git
    cd hacs-stremio
    ```
 

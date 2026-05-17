@@ -16,7 +16,7 @@
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add the repository URL: `https://github.com/tamaygz/hacs-stremio`
+5. Add the repository URL: `https://github.com/Kirill23/hacs-stremio`
 6. Select category "Integration"
 7. Click "Add"
 8. Find "Stremio" in the integration list and click "Download"
