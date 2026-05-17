@@ -36,13 +36,19 @@ from .const import (
     SERVICE_GET_STREAMS,
     SERVICE_GET_UPCOMING_EPISODES,
     SERVICE_HANDOVER_TO_APPLE_TV,
+    SERVICE_PLAY_STREAM,
     SERVICE_REFRESH_LIBRARY,
     SERVICE_REMOVE_FROM_LIBRARY,
     SERVICE_SEARCH_CATALOG,
     SERVICE_SEARCH_LIBRARY,
 )
 from .coordinator import StremioDataUpdateCoordinator
-from .stream_resolver import is_stream_playable
+from .playback_manager import PlaybackManager
+from .stream_resolver import (
+    StreamUnplayableError,
+    is_stream_playable,
+    resolve_stream_url,
+)
 from .stremio_client import StremioClient, StremioConnectionError
 
 _LOGGER = logging.getLogger(__name__)
@@ -170,6 +176,17 @@ GET_SIMILAR_CONTENT_SCHEMA = vol.Schema(
 
 # Get addons has no required parameters
 GET_ADDONS_SCHEMA = vol.Schema({})
+
+PLAY_STREAM_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_STREAM_URL): cv.string,
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required(ATTR_MEDIA_ID): cv.string,
+        vol.Required(ATTR_MEDIA_TYPE): vol.In(["movie", "series"]),
+        vol.Optional(ATTR_SEASON): cv.positive_int,
+        vol.Optional(ATTR_EPISODE): cv.positive_int,
+    }
+)
 
 
 def _get_entry_data(
@@ -831,6 +848,65 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         except StremioConnectionError as err:
             raise HomeAssistantError(f"Failed to get addons: {err}") from err
 
+    async def handle_play_stream(call: ServiceCall) -> None:
+        """Handle stremio.play_stream service call.
+
+        Resolves the chosen stream URL (direct or via configured torrent
+        server), dispatches media_player.play_media on the target entity,
+        and registers a progress-sync session.
+        """
+        coordinator, _client, entry_id = _get_entry_data(hass)
+
+        stream_url = call.data[ATTR_STREAM_URL]
+        entity_id = call.data["entity_id"]
+        media_id = call.data[ATTR_MEDIA_ID]
+        media_type = call.data[ATTR_MEDIA_TYPE]
+
+        # The picker hands us a URL it picked from get_streams; we still call
+        # resolve_stream_url so a URL-less entry submitted by a buggy caller
+        # gets a clear error instead of being silently mishandled downstream.
+        entry = hass.config_entries.async_get_entry(entry_id)
+        torrent_server_url = (
+            entry.options.get(CONF_TORRENT_SERVER_URL) if entry else None
+        ) or None
+
+        try:
+            playable_url = resolve_stream_url(
+                {"url": stream_url}, torrent_server_url
+            )
+        except StreamUnplayableError as err:
+            raise ServiceValidationError(
+                str(err),
+                translation_domain=DOMAIN,
+                translation_key="stream_unplayable",
+            ) from err
+
+        # Build minimal media_info; the picker can pass more via attributes
+        # in v2 if useful.
+        media_info: dict[str, object] = {
+            "type": media_type,
+        }
+        season = call.data.get(ATTR_SEASON)
+        episode = call.data.get(ATTR_EPISODE)
+        if season is not None:
+            media_info["season"] = season
+        if episode is not None:
+            media_info["episode"] = episode
+
+        playback_manager = PlaybackManager(hass)
+        await playback_manager.play(
+            entity_id=entity_id,
+            stream_url=playable_url,
+            media_info=media_info,
+        )
+
+        coordinator.register_playback_session(
+            entity_id=entity_id,
+            media_id=media_id,
+            media_type=media_type,
+            media_content_id=playable_url,
+        )
+
     # Register services
     hass.services.async_register(
         DOMAIN,
@@ -931,6 +1007,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PLAY_STREAM,
+        handle_play_stream,
+        schema=PLAY_STREAM_SCHEMA,
+    )
+
 
 async def async_unload_services(hass: HomeAssistant) -> None:
     """Unload Stremio services.
@@ -950,3 +1033,4 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_GET_RECOMMENDATIONS)
     hass.services.async_remove(DOMAIN, SERVICE_GET_SIMILAR_CONTENT)
     hass.services.async_remove(DOMAIN, SERVICE_GET_ADDONS)
+    hass.services.async_remove(DOMAIN, SERVICE_PLAY_STREAM)

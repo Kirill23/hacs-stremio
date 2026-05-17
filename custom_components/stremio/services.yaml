@@ -366,3 +366,65 @@ get_addons:
   name: Get Addons
   description: Retrieve the list of configured Stremio addons with their details including capabilities, supported types, and catalogs.
   fields: {}
+
+play_stream:
+  name: Play stream on device
+  description: >
+    Play a chosen Stremio stream on the named media_player entity. The
+    caller (Lovelace card or external client like Zentiahome) is
+    expected to have already fetched streams via get_streams and let
+    the user pick one. Progress is automatically synced back to
+    Stremio's continue-watching state (when enabled in options).
+  fields:
+    stream_url:
+      name: Stream URL
+      description: Direct stream URL chosen by the user (from get_streams).
+      required: true
+      example: "https://debrid.example.com/movie.mp4"
+      selector:
+        text:
+    entity_id:
+      name: Target media player
+      description: HA media_player entity to send the stream to.
+      required: true
+      example: "media_player.living_room_chromecast"
+      selector:
+        entity:
+          domain: media_player
+    media_id:
+      name: Media ID
+      description: IMDb-style ID of the content (e.g., tt1375666).
+      required: true
+      example: "tt1375666"
+      selector:
+        text:
+    media_type:
+      name: Media type
+      description: movie or series.
+      required: true
+      example: "movie"
+      selector:
+        select:
+          options:
+            - movie
+            - series
+    season:
+      name: Season
+      description: Season number (for series).
+      required: false
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    episode:
+      name: Episode
+      description: Episode number (for series).
+      required: false
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box

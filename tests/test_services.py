@@ -650,3 +650,122 @@ class TestGetSimilarContentService:
             media_id="tt0468569",
             limit=10,
         )
+
+
+class TestPlayStreamService:
+    """Tests for the play_stream service."""
+
+    @pytest.mark.asyncio
+    async def test_play_stream_resolves_and_dispatches(
+        self, hass: HomeAssistant, mock_coordinator
+    ):
+        """play_stream calls media_player.play_media and registers a session."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+        from custom_components.stremio.const import DOMAIN
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={"email": "test@example.com", "password": "test"},
+            options={
+                "addon_stream_order": "",
+                "stream_quality_preference": "any",
+            },
+            entry_id="test_entry_play_stream",
+        )
+        entry.add_to_hass(hass)
+
+        coordinator = MagicMock()
+        coordinator.register_playback_session = MagicMock()
+        mock_client = AsyncMock()
+
+        hass.data[DOMAIN] = {
+            entry.entry_id: {
+                "coordinator": coordinator,
+                "client": mock_client,
+            }
+        }
+
+        # Make sure the target entity exists in HA state.
+        hass.states.async_set("media_player.tv", "idle")
+
+        await async_setup_services(hass)
+
+        with patch(
+            "custom_components.stremio.services.PlaybackManager"
+        ) as mock_pm_class:
+            mock_pm = MagicMock()
+            mock_pm.play = AsyncMock(return_value=None)
+            mock_pm_class.return_value = mock_pm
+
+            await hass.services.async_call(
+                DOMAIN,
+                "play_stream",
+                {
+                    "stream_url": "https://debrid/x.mp4",
+                    "entity_id": "media_player.tv",
+                    "media_id": "tt001",
+                    "media_type": "movie",
+                },
+                blocking=True,
+            )
+
+        # Registered the session
+        coordinator.register_playback_session.assert_called_once_with(
+            entity_id="media_player.tv",
+            media_id="tt001",
+            media_type="movie",
+            media_content_id="https://debrid/x.mp4",
+        )
+
+    @pytest.mark.asyncio
+    async def test_play_stream_raises_for_unplayable_stream(
+        self, hass: HomeAssistant, mock_coordinator
+    ):
+        """A stream entry with no URL and no torrent server -> ServiceValidationError."""
+        from homeassistant.exceptions import ServiceValidationError
+
+        from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+        from custom_components.stremio.const import DOMAIN
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={"email": "test@example.com", "password": "test"},
+            options={
+                "addon_stream_order": "",
+                "stream_quality_preference": "any",
+                # No torrent_server_url configured
+            },
+            entry_id="test_entry_unplayable",
+        )
+        entry.add_to_hass(hass)
+
+        mock_client = AsyncMock()
+        hass.data[DOMAIN] = {
+            entry.entry_id: {
+                "coordinator": mock_coordinator,
+                "client": mock_client,
+            }
+        }
+
+        # Make sure the target entity exists
+        hass.states.async_set("media_player.tv", "idle")
+
+        await async_setup_services(hass)
+
+        with pytest.raises(ServiceValidationError):
+            await hass.services.async_call(
+                DOMAIN,
+                "play_stream",
+                {
+                    # Empty stream_url with no torrent server -> unplayable
+                    "stream_url": "",
+                    "entity_id": "media_player.tv",
+                    "media_id": "tt001",
+                    "media_type": "movie",
+                },
+                blocking=True,
+            )
