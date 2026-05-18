@@ -187,6 +187,53 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
+# Apple-TV-era config keys that are removed in v2. Listed as literal strings
+# (not imported from const.py) because the constants themselves are removed
+# in a later task — the migration must keep working without them.
+_APPLE_TV_LEGACY_KEYS: tuple[str, ...] = (
+    "enable_apple_tv_handover",
+    "apple_tv_entity_id",
+    "apple_tv_credentials",
+    "apple_tv_identifier",
+    "handover_method",
+    "apple_tv_device",
+)
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate older config entries to the v2 schema.
+
+    v1 (and pre-fork) entries carry Apple-TV-specific options that v2 no
+    longer reads. Strip them so users don't see surprising options remembered
+    after upgrade, and bump the entry version so HA records that the
+    migration ran. Idempotent — running on a v2 entry is a no-op.
+
+    Args:
+        hass: Home Assistant instance
+        entry: Config entry to migrate
+
+    Returns:
+        True (migration is best-effort; orphan keys are harmless if present).
+    """
+    if entry.version >= 2:
+        return True
+
+    _LOGGER.info(
+        "Migrating Stremio config entry %s to v2 "
+        "(removing Apple-TV-specific options)",
+        entry.entry_id,
+    )
+
+    legacy = _APPLE_TV_LEGACY_KEYS
+    new_data = {k: v for k, v in entry.data.items() if k not in legacy}
+    new_options = {k: v for k, v in entry.options.items() if k not in legacy}
+
+    hass.config_entries.async_update_entry(
+        entry, data=new_data, options=new_options, version=2
+    )
+    return True
+
+
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update for config entry.
 
