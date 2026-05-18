@@ -60,6 +60,7 @@ STREMIO_SERVER_PROBE_HOSTS: Final[tuple[str, ...]] = (
 CONF_PROGRESS_SYNC_ENABLED: Final = "progress_sync_enabled"
 DEFAULT_PROGRESS_SYNC_ENABLED: Final = True
 PROGRESS_SYNC_INTERVAL_SECONDS: Final = 30
+PENDING_SESSION_TTL_SECONDS: Final = 60
 WATCHED_THRESHOLD: Final = 0.9  # mark watched when position/duration >= this
 
 # Options defaults

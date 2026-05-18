@@ -16,7 +16,10 @@ from typing import TYPE_CHECKING, Callable
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant
 
-from .const import PROGRESS_SYNC_INTERVAL_SECONDS
+from .const import (
+    PENDING_SESSION_TTL_SECONDS,
+    PROGRESS_SYNC_INTERVAL_SECONDS,
+)
 
 if TYPE_CHECKING:
     from .stremio_client import StremioClient
@@ -41,6 +44,23 @@ class PlaybackSession:
     last_duration: float = 0.0
 
 
+@dataclass
+class PendingSession:
+    """A session that's been resolved but not yet observed playing.
+
+    Created when ``media_source.async_resolve_media`` is about to return a
+    URL to HA's framework. When a ``state_changed`` event arrives showing
+    any media_player entity playing that URL, the pending session
+    graduates to a regular PlaybackSession on that entity. GC'd after
+    PENDING_SESSION_TTL_SECONDS if no play arrives.
+    """
+
+    media_id: str
+    media_type: str
+    media_content_id: str
+    created_at: float = field(default_factory=time.monotonic)
+
+
 class ProgressSyncManager:
     """Tracks playback sessions and syncs progress to Stremio."""
 
@@ -48,6 +68,7 @@ class ProgressSyncManager:
         self._hass = hass
         self._client = client
         self._sessions: dict[str, PlaybackSession] = {}
+        self._pending: dict[str, PendingSession] = {}
         self._unsub_state_listener: Callable[[], None] | None = None
 
     def start(self) -> None:
@@ -101,19 +122,83 @@ class ProgressSyncManager:
     def active_entities(self) -> list[str]:
         return list(self._sessions.keys())
 
+    def register_pending_session(
+        self,
+        media_id: str,
+        media_type: str,
+        media_content_id: str,
+    ) -> None:
+        """Mark a URL as awaiting playback (Option X cross-flow tracking).
+
+        Called from ``media_source.async_resolve_media`` before returning a
+        URL. When any media_player entity starts playing that URL, the
+        listener will register a real session.
+        """
+        self._gc_pending()  # opportunistic cleanup
+        self._pending[media_content_id] = PendingSession(
+            media_id=media_id,
+            media_type=media_type,
+            media_content_id=media_content_id,
+        )
+        _LOGGER.debug(
+            "Registered pending session: url=%s media=%s (%s)",
+            media_content_id,
+            media_id,
+            media_type,
+        )
+
+    def get_pending_session(self, media_content_id: str) -> PendingSession | None:
+        return self._pending.get(media_content_id)
+
+    def _gc_pending(self) -> None:
+        """Drop pending sessions older than PENDING_SESSION_TTL_SECONDS."""
+        now = time.monotonic()
+        expired = [
+            url
+            for url, p in self._pending.items()
+            if now - p.created_at > PENDING_SESSION_TTL_SECONDS
+        ]
+        for url in expired:
+            del self._pending[url]
+
     async def _handle_state_change(self, event: Event) -> None:
         """Process a state_changed event for any registered entity."""
         entity_id = event.data.get("entity_id")
+        new_state = event.data.get("new_state")
+
+        attrs = (
+            getattr(new_state, "attributes", {}) or {} if new_state is not None else {}
+        )
+        content_id = attrs.get("media_content_id")
+
+        # Graduate a pending session if this state_change matches a URL we
+        # resolved via media_source but never explicitly registered.
+        if (
+            content_id
+            and entity_id not in self._sessions
+            and content_id in self._pending
+        ):
+            pending = self._pending.pop(content_id)
+            self.register_session(
+                entity_id=entity_id,
+                media_id=pending.media_id,
+                media_type=pending.media_type,
+                media_content_id=pending.media_content_id,
+            )
+            _LOGGER.debug(
+                "Graduated pending session to active: entity=%s url=%s",
+                entity_id,
+                content_id,
+            )
+
         if entity_id not in self._sessions:
             return
 
         session = self._sessions[entity_id]
-        new_state = event.data.get("new_state")
         if new_state is None:
             return
 
-        attrs = getattr(new_state, "attributes", {}) or {}
-        current_content_id = attrs.get("media_content_id")
+        current_content_id = content_id
         state_value = new_state.state
 
         # User cast different content to this device -> our session is dead.
