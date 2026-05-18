@@ -186,6 +186,9 @@
     },
     "entity_unavailable": {
       "message": "Entity {entity_id} is {state} and cannot be played to."
+    },
+    "stremio_entity_not_a_player": {
+      "message": "media_player.stremio is a status entity, not a playback target. Use the stremio.play_stream service, or play directly to your device entity in Home Assistant's media browser."
     }
   }
 }

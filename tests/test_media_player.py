@@ -41,13 +41,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media player state when playing."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.state == MediaPlayerState.PLAYING
@@ -57,7 +54,6 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media player state when idle."""
@@ -65,9 +61,7 @@ class TestStremioMediaPlayer:
             "current_watching": None,
         }
 
-        player = StremioMediaPlayer(
-            mock_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.state == MediaPlayerState.IDLE
@@ -77,13 +71,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media title property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.media_title == "The Shawshank Redemption"
@@ -93,13 +84,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media position property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.media_position == 3834
@@ -109,13 +97,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media duration property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.media_duration == 8520
@@ -125,13 +110,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media content type property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.media_content_type == MediaType.MOVIE
@@ -141,7 +123,6 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media content type for series."""
@@ -154,9 +135,7 @@ class TestStremioMediaPlayer:
             },
         }
 
-        player = StremioMediaPlayer(
-            mock_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.media_content_type == MediaType.TVSHOW
@@ -166,13 +145,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test media image URL property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.media_image_url == "https://example.com/shawshank.jpg"
@@ -182,13 +158,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test device info property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         device_info = player.device_info
@@ -202,13 +175,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test unique ID property."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         assert player.unique_id == f"{mock_config_entry.entry_id}_media_player"
@@ -218,16 +188,12 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
-        """Test supported features."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        """Test supported features — entity is status-only, no playback features."""
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
-        # Should have browse media and play media features
         assert player.supported_features is not None
 
     @pytest.mark.asyncio
@@ -235,13 +201,10 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_media_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test extra state attributes."""
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
         attrs = player.extra_state_attributes
@@ -256,15 +219,12 @@ class TestStremioMediaPlayer:
         self,
         hass: HomeAssistant,
         mock_coordinator,
-        mock_stremio_client,
         mock_config_entry,
     ):
         """Test extra state attributes are empty when idle."""
         mock_coordinator.data = {"current_watching": None}
 
-        player = StremioMediaPlayer(
-            mock_coordinator, mock_stremio_client, mock_config_entry
-        )
+        player = StremioMediaPlayer(mock_coordinator, mock_config_entry)
         player.hass = hass
 
         attrs = player.extra_state_attributes
@@ -300,68 +260,3 @@ class TestMediaPlayerSetup:
         entities = async_add_entities.call_args[0][0]
         assert len(entities) == 1
         assert isinstance(entities[0], StremioMediaPlayer)
-
-
-class TestMediaPlayerBrowse:
-    """Tests for media player browsing functionality."""
-
-    @pytest.mark.asyncio
-    async def test_async_browse_media_root(
-        self,
-        hass: HomeAssistant,
-        mock_media_coordinator,
-        mock_stremio_client,
-        mock_config_entry,
-    ):
-        """Test browsing media at root level."""
-        # Set up hass.data with coordinator
-        hass.data[DOMAIN] = {
-            mock_config_entry.entry_id: {
-                "coordinator": mock_media_coordinator,
-            }
-        }
-
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
-        player.hass = hass
-
-        # Browse root level
-        result = await player.async_browse_media()
-
-        # Should return BrowseMedia object with children
-        assert result is not None
-        assert result.title == "Stremio"
-        assert result.can_expand is True
-        assert result.can_play is False
-        assert result.children is not None
-        assert len(result.children) > 0
-
-    @pytest.mark.asyncio
-    async def test_async_browse_media_library(
-        self,
-        hass: HomeAssistant,
-        mock_media_coordinator,
-        mock_stremio_client,
-        mock_config_entry,
-    ):
-        """Test browsing library section."""
-        # Set up hass.data with coordinator
-        hass.data[DOMAIN] = {
-            mock_config_entry.entry_id: {
-                "coordinator": mock_media_coordinator,
-            }
-        }
-
-        player = StremioMediaPlayer(
-            mock_media_coordinator, mock_stremio_client, mock_config_entry
-        )
-        player.hass = hass
-
-        # Browse library
-        result = await player.async_browse_media(media_content_id="library")
-
-        # Should return library items
-        assert result is not None
-        assert result.title == "Library"
-        assert result.can_expand is True
