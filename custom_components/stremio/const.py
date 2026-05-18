@@ -33,12 +33,6 @@ CATALOG_SCAN_INTERVAL: Final = timedelta(hours=6)  # Catalogs change less freque
 CONF_AUTH_KEY: Final = "auth_key"
 CONF_PLAYER_SCAN_INTERVAL: Final = "player_scan_interval"
 CONF_LIBRARY_SCAN_INTERVAL: Final = "library_scan_interval"
-CONF_ENABLE_APPLE_TV_HANDOVER: Final = "enable_apple_tv_handover"
-CONF_HANDOVER_METHOD: Final = "handover_method"
-CONF_APPLE_TV_DEVICE: Final = "apple_tv_device"
-CONF_APPLE_TV_ENTITY_ID: Final = "apple_tv_entity_id"
-CONF_APPLE_TV_CREDENTIALS: Final = "apple_tv_credentials"
-CONF_APPLE_TV_IDENTIFIER: Final = "apple_tv_identifier"
 CONF_POLLING_GATE_ENTITIES: Final = "polling_gate_entities"
 CONF_SHOW_COPY_URL: Final = "show_copy_url"
 CONF_DEFAULT_CATALOG_SOURCE: Final = "default_catalog_source"
@@ -67,10 +61,6 @@ WATCHED_THRESHOLD: Final = 0.9  # mark watched when position/duration >= this
 DEFAULT_PLAYER_SCAN_INTERVAL: Final = 30  # seconds
 DEFAULT_LIBRARY_SCAN_INTERVAL: Final = 300  # seconds (5 minutes)
 DEFAULT_CONTINUE_WATCHING_LIMIT: Final = 100  # Max items in continue watching list
-DEFAULT_ENABLE_APPLE_TV_HANDOVER: Final = False
-DEFAULT_HANDOVER_METHOD: Final = "auto"
-DEFAULT_APPLE_TV_DEVICE: Final = ""
-DEFAULT_APPLE_TV_ENTITY_ID: Final = ""
 DEFAULT_POLLING_GATE_ENTITIES: Final[list[str]] = []
 DEFAULT_SHOW_COPY_URL: Final = True  # Show "Copy URL" in media browser streams
 DEFAULT_CATALOG_SOURCE: Final = "cinemeta"  # Default metadata addon
@@ -89,20 +79,6 @@ CATALOG_SOURCE_OPTIONS: Final = {
 # Polling gate intervals (seconds)
 POLLING_GATE_ACTIVE_INTERVAL: Final = None  # Use configured interval
 POLLING_GATE_IDLE_INTERVAL: Final = 86400  # 24 hours when all gate entities are off
-
-# Handover methods
-# Note: VLC deep links do NOT work on tvOS - kept for reference but will fail
-HANDOVER_METHOD_AUTO: Final = "auto"
-HANDOVER_METHOD_AIRPLAY: Final = "airplay"
-HANDOVER_METHOD_VLC: Final = "vlc"  # Does NOT work on tvOS!
-HANDOVER_METHOD_DIRECT: Final = "direct"
-HANDOVER_METHODS: Final = [
-    HANDOVER_METHOD_AUTO,
-    HANDOVER_METHOD_AIRPLAY,
-    HANDOVER_METHOD_DIRECT,
-    # VLC is intentionally last and will show a warning - it doesn't work on tvOS
-    HANDOVER_METHOD_VLC,
-]
 
 # Sensor Types
 SENSOR_TYPES: Final = {
