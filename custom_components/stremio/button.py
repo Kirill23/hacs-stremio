@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.config_entries import ConfigEntry
@@ -65,6 +66,7 @@ BUTTON_TYPES: tuple[StremioButtonEntityDescription, ...] = (
         press_fn=_refresh_library,
     ),
 )
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
