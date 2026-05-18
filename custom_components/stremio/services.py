@@ -63,6 +63,8 @@ ATTR_SEASON = "season"
 ATTR_EPISODE = "episode"
 ATTR_DEVICE_ID = "device_id"
 ATTR_STREAM_URL = "stream_url"
+ATTR_INFO_HASH = "info_hash"
+ATTR_FILE_IDX = "file_idx"
 ATTR_METHOD = "method"
 ATTR_GENRE = "genre"
 ATTR_SKIP = "skip"
@@ -179,7 +181,12 @@ GET_ADDONS_SCHEMA = vol.Schema({})
 
 PLAY_STREAM_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_STREAM_URL): cv.string,
+        # Either stream_url OR info_hash must be supplied (the resolver
+        # enforces this). Both are Optional here so infoHash-only Torrentio
+        # streams can be played via the configured torrent server.
+        vol.Optional(ATTR_STREAM_URL, default=""): cv.string,
+        vol.Optional(ATTR_INFO_HASH, default=""): cv.string,
+        vol.Optional(ATTR_FILE_IDX, default=0): cv.positive_int,
         vol.Required("entity_id"): cv.entity_id,
         vol.Required(ATTR_MEDIA_ID): cv.string,
         vol.Required(ATTR_MEDIA_TYPE): vol.In(["movie", "series"]),
@@ -858,20 +865,30 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         coordinator, _client, entry_id = _get_entry_data(hass)
 
         stream_url = call.data[ATTR_STREAM_URL]
+        info_hash = call.data[ATTR_INFO_HASH]
+        file_idx = call.data[ATTR_FILE_IDX]
         entity_id = call.data["entity_id"]
         media_id = call.data[ATTR_MEDIA_ID]
         media_type = call.data[ATTR_MEDIA_TYPE]
 
-        # The picker hands us a URL it picked from get_streams; we still call
-        # resolve_stream_url so a URL-less entry submitted by a buggy caller
-        # gets a clear error instead of being silently mishandled downstream.
+        # The picker hands us whatever the chosen stream had — a direct URL,
+        # an infoHash, or both. We rebuild the stream dict and let
+        # resolve_stream_url decide how to turn it into something playable
+        # (direct HTTP, or torrent-server URL constructed from infoHash).
         entry = hass.config_entries.async_get_entry(entry_id)
         torrent_server_url = (
             entry.options.get(CONF_TORRENT_SERVER_URL) if entry else None
         ) or None
 
+        stream_dict: dict[str, object] = {}
+        if stream_url:
+            stream_dict["url"] = stream_url
+        if info_hash:
+            stream_dict["infoHash"] = info_hash
+            stream_dict["fileIdx"] = file_idx
+
         try:
-            playable_url = resolve_stream_url({"url": stream_url}, torrent_server_url)
+            playable_url = resolve_stream_url(stream_dict, torrent_server_url)
         except StreamUnplayableError as err:
             raise ServiceValidationError(
                 str(err),

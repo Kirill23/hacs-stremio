@@ -769,3 +769,80 @@ class TestPlayStreamService:
                 },
                 blocking=True,
             )
+
+    @pytest.mark.asyncio
+    async def test_play_stream_resolves_infohash_via_torrent_server(
+        self, hass: HomeAssistant, mock_coordinator
+    ):
+        """info_hash + configured torrent_server_url -> playable URL handed to play_media."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+        from custom_components.stremio.const import (
+            CONF_TORRENT_SERVER_URL,
+            DOMAIN,
+        )
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={"email": "test@example.com", "password": "test"},
+            options={
+                "addon_stream_order": "",
+                "stream_quality_preference": "any",
+                CONF_TORRENT_SERVER_URL: "http://127.0.0.1:11470",
+            },
+            entry_id="test_entry_infohash",
+        )
+        entry.add_to_hass(hass)
+
+        coordinator = MagicMock()
+        coordinator.register_playback_session = MagicMock()
+        mock_client = AsyncMock()
+
+        hass.data[DOMAIN] = {
+            entry.entry_id: {
+                "coordinator": coordinator,
+                "client": mock_client,
+            }
+        }
+
+        hass.states.async_set("media_player.tv", "idle")
+        await async_setup_services(hass)
+
+        with patch(
+            "custom_components.stremio.services.PlaybackManager"
+        ) as mock_pm_class:
+            mock_pm = MagicMock()
+            mock_pm.play = AsyncMock(return_value=None)
+            mock_pm_class.return_value = mock_pm
+
+            await hass.services.async_call(
+                DOMAIN,
+                "play_stream",
+                {
+                    # InfoHash-only stream (typical Torrentio without debrid)
+                    "stream_url": "",
+                    "info_hash": "abc123def456",
+                    "file_idx": 2,
+                    "entity_id": "media_player.tv",
+                    "media_id": "tt001",
+                    "media_type": "movie",
+                },
+                blocking=True,
+            )
+
+            # Resolver should have built the torrent-server URL and passed it
+            # to PlaybackManager.play, and the session should be registered
+            # against that same URL.
+            mock_pm.play.assert_awaited_once()
+            play_kwargs = mock_pm.play.await_args.kwargs
+            expected_url = "http://127.0.0.1:11470/abc123def456/2"
+            assert play_kwargs["stream_url"] == expected_url
+
+        coordinator.register_playback_session.assert_called_once_with(
+            entity_id="media_player.tv",
+            media_id="tt001",
+            media_type="movie",
+            media_content_id=expected_url,
+        )

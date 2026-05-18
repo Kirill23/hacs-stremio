@@ -469,7 +469,13 @@ class StremioStreamDialog extends LitElement {
     if (!this._selectedDevice) return;
     try {
       await this.hass.callService('stremio', 'play_stream', {
+        // Forward whichever of url / infoHash the stream actually has.
+        // Torrentio's debrid streams have `url`; its P2P streams have
+        // only `infoHash` (which the backend resolves against the
+        // configured torrent server).
         stream_url: stream.url || '',
+        info_hash: stream.infoHash || '',
+        file_idx: stream.fileIdx ?? 0,
         entity_id: this._selectedDevice,
         media_id: this.mediaItem?.imdb_id || '',
         media_type: this.mediaItem?.type || 'movie',

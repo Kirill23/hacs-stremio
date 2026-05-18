@@ -378,11 +378,35 @@ play_stream:
   fields:
     stream_url:
       name: Stream URL
-      description: Direct stream URL chosen by the user (from get_streams).
-      required: true
+      description: >
+        Direct HTTP(S) stream URL chosen by the user (from get_streams).
+        Optional — leave empty for torrent streams identified by info_hash.
+      required: false
       example: "https://debrid.example.com/movie.mp4"
       selector:
         text:
+    info_hash:
+      name: Torrent info hash
+      description: >
+        BitTorrent infoHash for streams without a direct URL. Resolved
+        against the configured Torrent Server URL into a playable HTTP
+        URL. Either stream_url or info_hash must be supplied.
+      required: false
+      example: "abc123def456..."
+      selector:
+        text:
+    file_idx:
+      name: Torrent file index
+      description: >
+        File index inside the torrent (for multi-file torrents).
+        Defaults to 0.
+      required: false
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 999
+          mode: box
     entity_id:
       name: Target media player
       description: HA media_player entity to send the stream to.
