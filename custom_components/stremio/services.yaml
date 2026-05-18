@@ -130,50 +130,62 @@ refresh_library:
   fields: {}
 
 handover_to_apple_tv:
-  name: Handover to Apple TV
-  description: Send the current or specified media to an Apple TV device.
+  name: Handover to Apple TV (DEPRECATED)
+  description: >
+    DEPRECATED — use stremio.play_stream instead. This service is now a
+    thin compatibility shim that calls play_stream internally. Will be
+    removed in a future version.
   fields:
-    device_id:
-      name: Apple TV Device
-      description: Entity ID of the Apple TV to send media to.
+    stream_url:
+      name: Stream URL
+      description: Direct HTTP(S) stream URL.
+      required: false
+      example: "https://debrid.example.com/movie.mp4"
+      selector:
+        text:
+    info_hash:
+      name: Torrent info hash
+      description: BitTorrent infoHash for torrent-only streams.
+      required: false
+      example: "abc123..."
+      selector:
+        text:
+    file_idx:
+      name: Torrent file index
+      description: File index inside the torrent (defaults to 0).
+      required: false
+      default: 0
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 999
+          mode: box
+    entity_id:
+      name: Target media player
+      description: HA media_player entity to play to.
       required: true
-      example: "media_player.living_room_apple_tv"
+      example: "media_player.apple_tv_living_room"
       selector:
         entity:
           domain: media_player
-          integration: apple_tv
     media_id:
       name: Media ID
-      description: The IMDB ID of the media to play. If not provided, uses current watching.
-      required: false
-      example: "tt0903747"
+      description: IMDb-style ID.
+      required: true
+      example: "tt1375666"
       selector:
         text:
-    stream_url:
-      name: Stream URL
-      description: Direct stream URL to play. If not provided, fetches automatically.
-      required: false
-      example: "https://example.com/stream.m3u8"
-      selector:
-        text:
-    method:
-      name: Handover Method
-      description: >-
-        Method to use for handover:
-        - auto: Automatically select the best method based on stream format
-        - airplay: Use pyatv to stream via AirPlay (recommended, requires pyatv)
-        - direct: Send stream URL directly to Apple TV's native player
-        - vlc: Attempt VLC deep link (WARNING: does NOT work on tvOS)
-      required: false
-      default: "auto"
-      example: "airplay"
+    media_type:
+      name: Media type
+      description: movie or series.
+      required: true
+      example: "movie"
       selector:
         select:
           options:
-            - "auto"
-            - "airplay"
-            - "direct"
-            - "vlc"
+            - movie
+            - series
 
 browse_catalog:
   name: Browse Catalog

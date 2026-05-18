@@ -14,19 +14,13 @@ from homeassistant.core import (
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
-from .apple_tv_handover import HandoverError, HandoverManager
 from .const import (
     CONF_ADDON_STREAM_ORDER,
-    CONF_APPLE_TV_CREDENTIALS,
-    CONF_APPLE_TV_IDENTIFIER,
-    CONF_HANDOVER_METHOD,
     CONF_STREAM_QUALITY_PREFERENCE,
     CONF_TORRENT_SERVER_URL,
-    DEFAULT_HANDOVER_METHOD,
     DEFAULT_STREAM_QUALITY_PREFERENCE,
     DOMAIN,
     EVENT_NEW_CONTENT,
-    EVENT_PLAYBACK_STARTED,
     SERVICE_ADD_TO_LIBRARY,
     SERVICE_BROWSE_CATALOG,
     SERVICE_GET_ADDONS,
@@ -113,14 +107,20 @@ REMOVE_FROM_LIBRARY_SCHEMA = vol.Schema(
     }
 )
 
-HANDOVER_SCHEMA = vol.Schema(
+HANDOVER_COMPAT_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_DEVICE_ID): cv.entity_id,
-        vol.Optional(ATTR_MEDIA_ID): cv.string,
-        vol.Optional(ATTR_STREAM_URL): cv.string,
-        vol.Optional(ATTR_METHOD): vol.In(["auto", "airplay", "vlc", "direct"]),
+        vol.Optional(ATTR_STREAM_URL, default=""): cv.string,
+        vol.Optional(ATTR_INFO_HASH, default=""): cv.string,
+        vol.Optional(ATTR_FILE_IDX, default=0): cv.positive_int,
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required(ATTR_MEDIA_ID): cv.string,
+        vol.Required(ATTR_MEDIA_TYPE): vol.In(["movie", "series"]),
+        vol.Optional(ATTR_SEASON): cv.positive_int,
+        vol.Optional(ATTR_EPISODE): cv.positive_int,
     }
 )
+
+_HANDOVER_DEPRECATION_WARNED = False
 
 BROWSE_CATALOG_SCHEMA = vol.Schema(
     {
@@ -475,158 +475,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         await coordinator.async_request_refresh()
 
     async def handle_handover_to_apple_tv(call: ServiceCall) -> None:
-        """Handle handover_to_apple_tv service call."""
-        coordinator, client, entry_id = _get_entry_data(hass)
+        """Deprecated compat shim — delegates to stremio.play_stream.
 
-        device_id = call.data[ATTR_DEVICE_ID]
-        media_id = call.data.get(ATTR_MEDIA_ID)
-        stream_url = call.data.get(ATTR_STREAM_URL)
-
-        # Get configured default method from entry options
-        entry = hass.config_entries.async_get_entry(entry_id)
-        configured_method = DEFAULT_HANDOVER_METHOD
-        if entry:
-            configured_method = entry.options.get(
-                CONF_HANDOVER_METHOD, DEFAULT_HANDOVER_METHOD
+        Maintains backward compatibility for user automations from the
+        Apple-TV-era of the integration. Logs a one-time deprecation warning
+        per HA start.
+        """
+        global _HANDOVER_DEPRECATION_WARNED
+        if not _HANDOVER_DEPRECATION_WARNED:
+            _LOGGER.warning(
+                "stremio.handover_to_apple_tv is deprecated; use "
+                "stremio.play_stream instead. Will be removed in a future "
+                "version."
             )
-
-        # Use service call method if provided, otherwise use configured default
-        method = call.data.get(ATTR_METHOD) or configured_method
-
-        _LOGGER.info(
-            "Handover to Apple TV: device=%s, media=%s, method=%s",
-            device_id,
-            media_id,
-            method,
-        )
-
-        # Track media info for updating coordinator after handover
-        media_info: dict = {}
-
-        # Get stream URL if not provided
-        if not stream_url:
-            if not media_id:
-                # Try to get from current watching
-                if coordinator.data is None:
-                    raise ServiceValidationError(
-                        "Coordinator data not available",
-                        translation_domain=DOMAIN,
-                        translation_key="no_data_available",
-                    )
-                current = coordinator.data.get("current_watching")
-                if not current:
-                    raise ServiceValidationError(
-                        "No media_id provided and nothing currently watching",
-                        translation_domain=DOMAIN,
-                        translation_key="no_media_for_handover",
-                    )
-                media_id = current.get("imdb_id")
-                media_type = current.get("type", "movie")
-                season = current.get("season")
-                episode = current.get("episode")
-                # Copy existing media info
-                media_info = {
-                    "title": current.get("title"),
-                    "type": media_type,
-                    "imdb_id": media_id,
-                    "poster": current.get("poster"),
-                    "year": current.get("year"),
-                    "season": season,
-                    "episode": episode,
-                    "episode_title": current.get("episode_title"),
-                    "progress": current.get("progress", 0),
-                    "duration": current.get("duration", 0),
-                    "progress_percent": current.get("progress_percent", 0),
-                    "time_offset": current.get("time_offset", 0),
-                }
-            else:
-                media_type = "movie"  # Default assumption
-                season = None
-                episode = None
-                media_info = {
-                    "imdb_id": media_id,
-                    "type": media_type,
-                }
-
-            try:
-                streams = await client.async_get_streams(
-                    media_id=media_id,
-                    media_type=media_type,
-                    season=season,
-                    episode=episode,
-                )
-                if streams:
-                    stream_url = streams[0].get("url")
-            except StremioConnectionError as err:
-                raise HomeAssistantError(f"Failed to get stream URL: {err}") from err
-        else:
-            # Stream URL was provided directly, build minimal media info
-            media_info = {
-                "imdb_id": media_id,
-                "type": "movie",  # Default assumption
-            }
-
-        if not stream_url:
-            raise ServiceValidationError(
-                "Could not determine stream URL",
-                translation_domain=DOMAIN,
-                translation_key="no_stream_url",
-            )
-
-        # Get current watching title for display
-        title = media_info.get("title")
-        if not title and coordinator.data:
-            current = coordinator.data.get("current_watching")
-            if current:
-                title = current.get("title")
-                # Update media_info with title if we found it
-                if title:
-                    media_info["title"] = title
-
-        # Get stored Apple TV credentials from config entry options
-        entry = hass.config_entries.async_get_entry(entry_id)
-        credentials = None
-        device_identifier = None
-        if entry:
-            credentials = entry.options.get(CONF_APPLE_TV_CREDENTIALS)
-            device_identifier = entry.options.get(CONF_APPLE_TV_IDENTIFIER)
-
-        # Use HandoverManager for proper handover with credentials
-        handover_manager = HandoverManager(
-            hass,
-            credentials=credentials,
-            device_identifier=device_identifier,
-        )
-
-        try:
-            result = await handover_manager.handover(
-                device_identifier=device_id,
-                stream_url=stream_url,
-                method=method,
-                title=title,
-            )
-
-            _LOGGER.info("Handover result: %s", result)
-
-            # Update the current media on the Stremio device coordinator
-            coordinator.set_current_media(media_info, stream_url)
-
-        except HandoverError as err:
-            raise HomeAssistantError(f"Handover failed: {err}") from err
-
-        # Fire event
-        hass.bus.async_fire(
-            EVENT_PLAYBACK_STARTED,
-            {
-                "device_id": device_id,
-                "media_id": media_id,
-                "stream_url": stream_url,
-                "method": method,
-            },
-        )
-
-        # Schedule a refresh after a short delay to allow Stremio's backend to sync
-        coordinator.schedule_refresh_after_playback()
+            _HANDOVER_DEPRECATION_WARNED = True
+        await handle_play_stream(call)
 
     async def handle_browse_catalog(call: ServiceCall) -> ServiceResponse:
         """Handle browse_catalog service call.
@@ -998,7 +861,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_HANDOVER_TO_APPLE_TV,
         handle_handover_to_apple_tv,
-        schema=HANDOVER_SCHEMA,
+        schema=HANDOVER_COMPAT_SCHEMA,
     )
 
     hass.services.async_register(

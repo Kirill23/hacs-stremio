@@ -350,38 +350,6 @@ class TestRefreshLibraryService:
         mock_coordinator.async_request_refresh.assert_called()
 
 
-class TestHandoverService:
-    """Tests for the Apple TV handover service."""
-
-    @pytest.mark.asyncio
-    async def test_handover_with_stream_url(self, mock_service_hass, mock_coordinator):
-        """Test handover with provided stream URL."""
-        mock_coordinator.data = {"current_watching": None}
-
-        await async_setup_services(mock_service_hass)
-
-        with patch(
-            "custom_components.stremio.services.HandoverManager"
-        ) as mock_handover:
-            mock_manager = MagicMock()
-            mock_manager.handover = AsyncMock(return_value={"success": True})
-            mock_handover.return_value = mock_manager
-
-            # Call the service without response since it doesn't support responses
-            await mock_service_hass.services.async_call(
-                DOMAIN,
-                SERVICE_HANDOVER_TO_APPLE_TV,
-                {
-                    "device_id": "media_player.apple_tv",
-                    "stream_url": "http://example.com/stream.mp4",
-                    "method": "vlc",
-                },
-                blocking=True,
-            )
-
-            mock_manager.handover.assert_called_once()
-
-
 class TestServiceRegistration:
     """Tests for service registration."""
 
