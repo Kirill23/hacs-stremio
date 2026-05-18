@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-05-18
+
+### Breaking
+
+- Removed `media_player.stremio.async_play_media`. The entity is now
+  status-only. Routes that targeted it now raise `ServiceValidationError`
+  with a clear message pointing at `stremio.play_stream` or HA's native
+  send-to-device picker in the media browser.
+- Removed `apple_tv_handover.py` module and the `pyatv` runtime dependency.
+  Apple TV streaming continues to work via HA's stock `apple_tv` integration.
+- Removed Apple-TV-specific config options (`enable_apple_tv_handover`,
+  `apple_tv_entity_id`, `apple_tv_credentials`, `apple_tv_identifier`,
+  `handover_method`, `apple_tv_device`). Auto-migration silently strips
+  these from existing config entries on first v0.7.0 load.
+- Removed the custom Lovelace stream-dialog picker
+  (`stremio-stream-dialog.js`). Dashboards that referenced
+  `custom:stremio-stream-dialog` will need to be updated.
+- Removed the `StremioAppleTVHandoverButton` button entity (no replacement —
+  use `stremio.play_stream` with any media_player entity instead).
+
+### Added
+
+- New service `stremio.get_library` — clean, paginated, type-filtered
+  library access. Designed for external clients (e.g. Zentiahome) that
+  want to render their own library UI.
+- HA media browser flow now uses the same `stream_resolver` as
+  `stremio.play_stream`, so it can play infoHash-only Torrentio streams
+  via a configured torrent server.
+- Progress sync now works for plays initiated through the HA media browser
+  (not only `stremio.play_stream` calls), via pending-session URL
+  correlation.
+
+### Deprecated
+
+- `stremio.handover_to_apple_tv` service is now a compat shim that
+  delegates to `stremio.play_stream`. One deprecation warning is logged
+  per HA start. The service will be removed in a future release; migrate
+  existing automations to `stremio.play_stream`.
+
 ## [0.4.0] - 2025-01-XX
 
 ### Added
