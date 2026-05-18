@@ -19,7 +19,13 @@ from homeassistant.components.media_source import (
 )
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_SHOW_COPY_URL, DEFAULT_SHOW_COPY_URL, DOMAIN
+from .const import (
+    CONF_SHOW_COPY_URL,
+    CONF_TORRENT_SERVER_URL,
+    DEFAULT_SHOW_COPY_URL,
+    DOMAIN,
+)
+from .stream_resolver import StreamUnplayableError, resolve_stream_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,24 +144,41 @@ class StremioMediaSource(MediaSource):
             if not streams:
                 raise Unresolvable(f"No streams found for {identifier}")
 
-            # Get the requested stream by index, or first one if not specified
-            if stream_index is not None and 0 <= stream_index < len(streams):
-                selected_stream = streams[stream_index]
-            else:
-                selected_stream = streams[0]
+            # Pick the requested stream by index, or first one if not specified
+            if stream_index is None:
+                stream_index = 0
+            if stream_index >= len(streams):
+                raise Unresolvable(
+                    f"Stream index {stream_index} out of range "
+                    f"(only {len(streams)} streams)"
+                )
+            selected_stream = streams[stream_index]
 
-            stream_url = selected_stream.get("url") or selected_stream.get(
-                "externalUrl"
-            )
+            # Look up the configured torrent server URL from the integration's
+            # config entry options (None / empty means "no torrent server").
+            torrent_server_url: str | None = None
+            for entry in self.hass.config_entries.async_entries(DOMAIN):
+                torrent_server_url = entry.options.get(CONF_TORRENT_SERVER_URL) or None
+                if torrent_server_url:
+                    break
 
-            if not stream_url:
-                raise Unresolvable("No playable stream URL available")
+            try:
+                resolved_url = resolve_stream_url(selected_stream, torrent_server_url)
+            except StreamUnplayableError as err:
+                raise Unresolvable(
+                    f"This Stremio stream cannot be played. Either configure "
+                    f"Real-Debrid (or another debrid service) in your Torrentio "
+                    f"addon URL, or install the Stremio Server companion add-on. "
+                    f"({err})"
+                ) from err
 
             # Determine MIME type
-            mime_type = self._get_mime_type(stream_url, selected_stream)
+            mime_type = self._get_mime_type(resolved_url, selected_stream)
 
-            return PlayMedia(url=stream_url, mime_type=mime_type)
+            return PlayMedia(url=resolved_url, mime_type=mime_type)
 
+        except Unresolvable:
+            raise
         except Exception as err:
             _LOGGER.error("Error resolving media %s: %s", identifier, err)
             raise Unresolvable(f"Failed to resolve media: {err}") from err
@@ -583,9 +606,7 @@ class StremioMediaSource(MediaSource):
         try:
             metadata = await client.async_get_series_metadata(media_id)
         except Exception as err:
-            _LOGGER.warning(
-                "Failed to fetch series metadata for %s: %s", media_id, err
-            )
+            _LOGGER.warning("Failed to fetch series metadata for %s: %s", media_id, err)
 
         if not metadata:
             # If we can't get metadata, show an error state instead of crashing
@@ -867,9 +888,7 @@ class StremioMediaSource(MediaSource):
 
         return StremioClient.parse_stream_metadata(stream)
 
-    def _get_stream_display_name(
-        self, stream: dict[str, Any], index: int
-    ) -> str:
+    def _get_stream_display_name(self, stream: dict[str, Any], index: int) -> str:
         """Get the best display name for a stream.
 
         Prefers the actual filename (most informative) over generic addon names.
@@ -889,7 +908,9 @@ class StremioMediaSource(MediaSource):
         filename = behavior_hints.get("filename")
         if filename:
             # Remove common video extensions for cleaner display
-            name = re.sub(r"\.(mkv|mp4|avi|webm|m4v)$", "", filename, flags=re.IGNORECASE)
+            name = re.sub(
+                r"\.(mkv|mp4|avi|webm|m4v)$", "", filename, flags=re.IGNORECASE
+            )
             return name
 
         # 2. Check description - some addons put detailed release info here
@@ -898,7 +919,7 @@ class StremioMediaSource(MediaSource):
             # Match common release name patterns (starts with title, has resolution)
             release_pattern = re.compile(
                 r"^[\w\.\-]+\.(S\d{2}E\d{2}\.)?(\d{3,4}p|4K|2160|1080|720)",
-                re.IGNORECASE
+                re.IGNORECASE,
             )
             if release_pattern.match(description):
                 return description.split("\n")[0].strip()
@@ -910,9 +931,7 @@ class StremioMediaSource(MediaSource):
         # 3. Fall back to name or title
         return stream.get("name") or stream.get("title") or f"Stream {index + 1}"
 
-    def _format_stream_label(
-        self, stream: dict[str, Any], index: int
-    ) -> str:
+    def _format_stream_label(self, stream: dict[str, Any], index: int) -> str:
         """Format stream information into a single-line label for Media Browser.
 
         Home Assistant's Media Browser doesn't support multiline titles,
