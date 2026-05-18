@@ -33,7 +33,6 @@ class StremioMediaDetailsCard extends LitElement {
       config: { type: Object },
       _media: { type: Object },
       _loading: { type: Boolean },
-      _showStreamDialog: { type: Boolean },
       _expanded: { type: Boolean },
       _fetchedMetadata: { type: Object },
       _metadataFetchId: { type: String },
@@ -396,7 +395,6 @@ class StremioMediaDetailsCard extends LitElement {
     super();
     this._media = null;
     this._loading = false;
-    this._showStreamDialog = false;
     this._expanded = false;
     this._fetchedMetadata = null;
     this._metadataFetchId = null;
@@ -469,7 +467,6 @@ class StremioMediaDetailsCard extends LitElement {
     if (changedProps.has('config')) return true;
     if (changedProps.has('_media')) return true;
     if (changedProps.has('_loading')) return true;
-    if (changedProps.has('_showStreamDialog')) return true;
     if (changedProps.has('_expanded')) return true;
     
     // For hass, only update if relevant entity changed
@@ -815,12 +812,7 @@ class StremioMediaDetailsCard extends LitElement {
   _renderActions() {
     return html`
       <div class="actions">
-        <button class="action-btn primary" @click=${this._getStreams}>
-          <ha-icon icon="mdi:play-circle"></ha-icon>
-          Get Streams
-        </button>
-        
-        <button class="action-btn secondary" @click=${this._openInStremio}>
+        <button class="action-btn primary" @click=${this._openInStremio}>
           <ha-icon icon="mdi:open-in-app"></ha-icon>
           Open in Stremio
         </button>
@@ -862,154 +854,6 @@ class StremioMediaDetailsCard extends LitElement {
       'tvshow': 'mdi:television',
     };
     return icons[type?.toLowerCase()] || 'mdi:filmstrip';
-  }
-
-  async _getStreams() {
-    if (!this._media.media_id && !this._media.stremio_id) {
-      this._showNotification('No media ID available for stream lookup');
-      return;
-    }
-
-    const mediaId = this._media.media_id || this._media.stremio_id;
-    const mediaType = this._media.type || 'movie';
-    
-    console.log('[Media Details Card] Getting streams for:', mediaId, mediaType);
-    
-    // For series, show episode picker first
-    if (mediaType === 'series') {
-      console.log('[Media Details Card] TV Show detected, opening episode picker');
-      this._showEpisodePicker(mediaId, mediaType);
-      return;
-    }
-    
-    // For movies, fetch streams directly
-    this._fetchStreams(mediaId, mediaType, null, null);
-  }
-
-  _showEpisodePicker(mediaId, mediaType) {
-    // Use the global helper if available
-    if (window.StremioEpisodePicker) {
-      const onEpisodeSelected = (season, episode) => {
-        this._fetchStreams(mediaId, mediaType, season, episode);
-      };
-
-      window.StremioEpisodePicker.show(
-        this.hass,
-        {
-          title: this._media.title,
-          type: 'series',
-          poster: this._media.poster,
-          imdb_id: mediaId,
-        },
-        (selection) => {
-          onEpisodeSelected(selection.season, selection.episode);
-        }
-      );
-    } else {
-      // Fallback: Create picker directly
-      let picker = document.querySelector('stremio-episode-picker');
-      if (!picker) {
-        picker = document.createElement('stremio-episode-picker');
-        document.body.appendChild(picker);
-      }
-      picker.hass = this.hass;
-      picker.mediaItem = {
-        title: this._media.title,
-        type: 'series',
-        imdb_id: mediaId,
-      };
-      picker.open = true;
-      
-      // Listen for selection
-      const handler = (e) => {
-        picker.removeEventListener('episode-selected', handler);
-        this._fetchStreams(mediaId, mediaType, e.detail.season, e.detail.episode);
-      };
-      picker.addEventListener('episode-selected', handler);
-    }
-  }
-
-  _fetchStreams(mediaId, mediaType, season, episode) {
-    console.log('[Media Details Card] Fetching streams:', mediaId, mediaType, season ? `S${season}E${episode}` : '');
-    this._showNotification('Fetching streams...');
-    
-    const serviceData = {
-      media_id: mediaId,
-      media_type: mediaType,
-    };
-    
-    // Add season/episode for series
-    if (mediaType === 'series' && season && episode) {
-      serviceData.season = season;
-      serviceData.episode = episode;
-    }
-
-    // Call service with return_response using WebSocket directly
-    this.hass.callWS({
-      type: 'call_service',
-      domain: 'stremio',
-      service: 'get_streams',
-      service_data: serviceData,
-      return_response: true,
-    })
-      .then((response) => {
-        console.log('[Media Details Card] Streams response:', response);
-        
-        let streams = null;
-        if (response?.response?.streams) {
-          streams = response.response.streams;
-        } else if (response?.streams) {
-          streams = response.streams;
-        }
-        
-        if (streams && streams.length > 0) {
-          console.log('[Media Details Card] Found', streams.length, 'streams');
-          const displayItem = {
-            title: this._media.title,
-            type: mediaType,
-            poster: this._media.poster,
-            imdb_id: mediaId,
-          };
-          if (season && episode) {
-            displayItem.title = `${this._media.title} - S${season}E${episode}`;
-          }
-          this._showStreamDialog(displayItem, streams, season, episode);
-        } else {
-          console.log('[Media Details Card] No streams in response:', response);
-          this._showNotification('No streams found for this title');
-        }
-      })
-      .catch((error) => {
-        console.error('[Media Details Card] Failed to get streams:', error);
-        this._showNotification(`Failed to get streams: ${error.message}`);
-      });
-  }
-
-  _showStreamDialog(item, streams, season, episode) {
-    if (window.StremioStreamDialog) {
-      window.StremioStreamDialog.show(
-        this.hass,
-        item,
-        streams,
-        this.config.apple_tv_entity,
-        season != null ? season : null,
-        episode != null ? episode : null,
-      );
-    } else {
-      // Fallback: Create dialog directly
-      let dialog = document.querySelector('stremio-stream-dialog');
-      if (!dialog) {
-        dialog = document.createElement('stremio-stream-dialog');
-        document.body.appendChild(dialog);
-      }
-      dialog.hass = this.hass;
-      dialog.mediaItem = item;
-      dialog.streams = streams;
-      dialog.appleTvEntity = this.config.apple_tv_entity;
-      dialog.season = season != null ? season : null;
-      dialog.episode = episode != null ? episode : null;
-      dialog.open = true;
-    }
   }
 
   _openInStremio() {

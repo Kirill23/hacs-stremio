@@ -18,7 +18,6 @@ import './stremio-library-card.js';
 import './stremio-media-details-card.js';
 import './stremio-player-card.js';
 import './stremio-recommendations-card.js';
-import './stremio-stream-dialog.js';
 
 // Get version from URL query param (set by backend from manifest.json)
 const getVersionFromUrl = () => {
@@ -67,14 +66,6 @@ window.customCards.push({
   name: 'Stremio Media Details Card',
   description: 'Display full media metadata with description, cast, and actions',
   preview: true,
-  documentationURL: 'https://github.com/tamaygz/hacs-stremio/blob/main/docs/ui.md',
-});
-
-window.customCards.push({
-  type: 'stremio-stream-dialog',
-  name: 'Stremio Stream Dialog',
-  description: 'Stream selector dialog for choosing playback sources',
-  preview: false,
   documentationURL: 'https://github.com/tamaygz/hacs-stremio/blob/main/docs/ui.md',
 });
 
