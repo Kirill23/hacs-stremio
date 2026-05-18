@@ -981,3 +981,24 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def unregister_playback_session(self, entity_id: str) -> None:
         """Unregister a playback session by entity_id."""
         self.progress_sync.unregister_session(entity_id)
+
+    def get_library_items(
+        self,
+        media_type: str = "all",
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return library items filtered + paginated.
+
+        Args:
+            media_type: One of "movie", "series", or "all".
+            skip: Number of items to skip (for pagination).
+            limit: Max items to return.
+
+        Returns:
+            List of library item dicts. Empty if coordinator has no data yet.
+        """
+        items: list[dict[str, Any]] = list(self.data.get("library", []) or [])
+        if media_type != "all":
+            items = [i for i in items if i.get("type") == media_type]
+        return items[skip : skip + limit]

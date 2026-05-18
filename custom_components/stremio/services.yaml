@@ -367,6 +367,47 @@ get_addons:
   description: Retrieve the list of configured Stremio addons with their details including capabilities, supported types, and catalogs.
   fields: {}
 
+get_library:
+  name: Get library
+  description: >
+    Return the user's Stremio library, optionally filtered by content type
+    and paginated. Designed for external clients (e.g. Zentiahome) to
+    discover what's in the library without inferring it from search.
+  fields:
+    type:
+      name: Content type
+      description: Filter to movies, series, or both.
+      required: false
+      default: "all"
+      example: "movie"
+      selector:
+        select:
+          options:
+            - all
+            - movie
+            - series
+    skip:
+      name: Skip
+      description: Pagination offset.
+      required: false
+      default: 0
+      example: 0
+      selector:
+        number:
+          min: 0
+          mode: box
+    limit:
+      name: Limit
+      description: Maximum items to return.
+      required: false
+      default: 100
+      example: 100
+      selector:
+        number:
+          min: 1
+          max: 1000
+          mode: box
+
 play_stream:
   name: Play stream on device
   description: >

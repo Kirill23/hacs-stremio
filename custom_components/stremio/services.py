@@ -30,6 +30,7 @@ from .const import (
     SERVICE_ADD_TO_LIBRARY,
     SERVICE_BROWSE_CATALOG,
     SERVICE_GET_ADDONS,
+    SERVICE_GET_LIBRARY,
     SERVICE_GET_RECOMMENDATIONS,
     SERVICE_GET_SERIES_METADATA,
     SERVICE_GET_SIMILAR_CONTENT,
@@ -173,6 +174,14 @@ GET_SIMILAR_CONTENT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_LIMIT, default=10): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=30)  # type: ignore[arg-type]
         ),
+    }
+)
+
+GET_LIBRARY_SCHEMA = vol.Schema(
+    {
+        vol.Optional("type", default="all"): vol.In(["movie", "series", "all"]),
+        vol.Optional(ATTR_SKIP, default=0): cv.positive_int,
+        vol.Optional(ATTR_LIMIT, default=100): cv.positive_int,
     }
 )
 
@@ -922,6 +931,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             media_content_id=playable_url,
         )
 
+    async def handle_get_library(call: ServiceCall) -> ServiceResponse:  # type: ignore[return-value]
+        """Return the user's Stremio library (paginated, optionally filtered)."""
+        coordinator, _client, _entry_id = _get_entry_data(hass)
+        items = coordinator.get_library_items(
+            media_type=call.data["type"],
+            skip=call.data[ATTR_SKIP],
+            limit=call.data[ATTR_LIMIT],
+        )
+        return {"items": items, "count": len(items)}
+
     # Register services
     hass.services.async_register(
         DOMAIN,
@@ -929,6 +948,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         handle_search_library,
         schema=SEARCH_LIBRARY_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_LIBRARY,
+        handle_get_library,
+        schema=GET_LIBRARY_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
 
     hass.services.async_register(
@@ -1037,6 +1064,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
         hass: Home Assistant instance
     """
     hass.services.async_remove(DOMAIN, SERVICE_SEARCH_LIBRARY)
+    hass.services.async_remove(DOMAIN, SERVICE_GET_LIBRARY)
     hass.services.async_remove(DOMAIN, SERVICE_GET_STREAMS)
     hass.services.async_remove(DOMAIN, SERVICE_GET_SERIES_METADATA)
     hass.services.async_remove(DOMAIN, SERVICE_ADD_TO_LIBRARY)
