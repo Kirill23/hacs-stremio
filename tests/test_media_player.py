@@ -191,10 +191,14 @@ class TestStremioMediaPlayer:
         mock_config_entry,
     ):
         """Test supported features — entity is status-only, no playback features."""
+        from homeassistant.components.media_player import MediaPlayerEntityFeature
+
         player = StremioMediaPlayer(mock_media_coordinator, mock_config_entry)
         player.hass = hass
 
-        assert player.supported_features is not None
+        # Status-only entity must expose zero playback features so HA's
+        # send-to-device picker doesn't treat it as a valid play target.
+        assert player.supported_features == MediaPlayerEntityFeature(0)
 
     @pytest.mark.asyncio
     async def test_extra_state_attributes(
