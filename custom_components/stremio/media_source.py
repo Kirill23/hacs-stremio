@@ -172,6 +172,21 @@ class StremioMediaSource(MediaSource):
                     f"({err})"
                 ) from err
 
+            # Register a pending session so ProgressSyncManager will pick up
+            # whichever media_player ends up playing this URL (Option X).
+            try:
+                coordinator.register_pending_session(
+                    media_id=media_id,
+                    media_type=media_type,
+                    media_content_id=resolved_url,
+                )
+            except (
+                Exception
+            ):  # noqa: BLE001 — never fail playback resolution for telemetry
+                _LOGGER.exception(
+                    "Failed to register pending session; playback continues"
+                )
+
             # Determine MIME type
             mime_type = self._get_mime_type(resolved_url, selected_stream)
 

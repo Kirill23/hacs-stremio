@@ -965,6 +965,19 @@ class StremioDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             media_content_id=media_content_id,
         )
 
+    def register_pending_session(
+        self,
+        media_id: str,
+        media_type: str,
+        media_content_id: str,
+    ) -> None:
+        """Mark a URL as awaiting playback (Option X — Flow B progress sync)."""
+        self.progress_sync.register_pending_session(
+            media_id=media_id,
+            media_type=media_type,
+            media_content_id=media_content_id,
+        )
+
     def unregister_playback_session(self, entity_id: str) -> None:
         """Unregister a playback session by entity_id."""
         self.progress_sync.unregister_session(entity_id)

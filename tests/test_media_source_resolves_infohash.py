@@ -99,3 +99,35 @@ async def test_raises_unresolvable_when_no_url_and_no_server(hass) -> None:
     # User-facing message should point at the remediation paths
     msg = str(exc_info.value).lower()
     assert "stremio server" in msg or "torrent server" in msg or "debrid" in msg
+
+
+@pytest.mark.asyncio
+async def test_resolve_registers_pending_session(hass) -> None:
+    """async_resolve_media notifies coordinator to expect playback of the resolved URL."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        data={"email": "x", "password": "y"},
+        options={CONF_TORRENT_SERVER_URL: "http://127.0.0.1:11470"},
+    )
+    entry.add_to_hass(hass)
+
+    coordinator = MagicMock()
+    coordinator.register_pending_session = MagicMock()
+    client = MagicMock()
+    client.async_get_streams = AsyncMock(
+        return_value=[{"name": "T", "infoHash": "abc123"}]
+    )
+    coordinator.client = client
+    hass.data[DOMAIN] = {entry.entry_id: {"coordinator": coordinator, "client": client}}
+
+    source = StremioMediaSource(hass)
+    await source.async_resolve_media(_mock_item("movie/tt001#0"))
+
+    coordinator.register_pending_session.assert_called_once_with(
+        media_id="tt001",
+        media_type="movie",
+        media_content_id="http://127.0.0.1:11470/abc123/0",
+    )
