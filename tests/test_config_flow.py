@@ -181,8 +181,6 @@ async def test_options_flow_update(hass: HomeAssistant, mock_config_entry):
     new_options = {
         "player_scan_interval": 60,
         "library_scan_interval": 600,
-        "enable_apple_tv_handover": False,  # Disable to avoid Apple TV discovery
-        "handover_method": "direct",  # Use direct instead of airplay
         "show_copy_url": True,
         "default_catalog_source": "cinemeta",
         "addon_stream_order": [
@@ -228,8 +226,6 @@ async def test_options_flow_reset_addon_order(hass: HomeAssistant, mock_config_e
     new_options = {
         "player_scan_interval": 30,
         "library_scan_interval": 300,
-        "enable_apple_tv_handover": False,
-        "handover_method": "auto",
         "show_copy_url": True,
         "default_catalog_source": "cinemeta",
         "addon_stream_order": ["Torrentio"],
