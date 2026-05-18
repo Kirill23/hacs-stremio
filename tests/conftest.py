@@ -326,19 +326,6 @@ def mock_stremio_api():
 
 
 @pytest.fixture
-def mock_pyatv():
-    """Patch the pyatv module for Apple TV tests."""
-    with patch("custom_components.stremio.apple_tv_handover.pyatv") as mock:
-        mock_device = MagicMock()
-        mock_device.name = "Living Room Apple TV"
-        mock_device.identifier = "apple_tv_123"
-        mock.scan = AsyncMock(return_value=[mock_device])
-        mock.connect = AsyncMock()
-
-        yield mock
-
-
-@pytest.fixture
 def aioresponses_mock():
     """aioresponses context manager exposed as a fixture."""
     with aioresponses() as m:
