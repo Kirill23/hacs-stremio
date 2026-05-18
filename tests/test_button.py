@@ -115,4 +115,3 @@ class TestButtonPlatformSetup:
         entities = async_add_entities.call_args[0][0]
         assert len(entities) == len(BUTTON_TYPES)
         assert all(isinstance(e, StremioButton) for e in entities)
-
