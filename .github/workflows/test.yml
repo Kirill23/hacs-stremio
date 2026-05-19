@@ -12,7 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12", "3.13"]
+        # Home Assistant 2025.x requires Python 3.13+; dropping 3.12.
+        # pytest-homeassistant-custom-component>=0.13.206 also requires 3.13.
+        python-version: ["3.13"]
 
     steps:
       - name: Checkout code
