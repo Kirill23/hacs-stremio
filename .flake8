@@ -1,0 +1,18 @@
+[flake8]
+# Match the formatting policy:
+# - Black handles line-length and most style; cap at 120 for our project
+# - E203 (whitespace-before-colon) conflicts with Black's slice spacing
+#   (a[x : y]). Black wins.
+# - E501 (line too long): we cap at 120 explicitly; many pre-existing
+#   lines sit between 88 and 120 and Black doesn't reformat them
+# - W503 (line break before binary operator): Black-style preferred
+max-line-length = 120
+extend-ignore = E203,E501,W503
+exclude =
+    .venv,
+    .worktrees,
+    build,
+    dist,
+    config,
+    docs/superpowers/plans,
+    docs/superpowers/specs
