@@ -1,48 +1,48 @@
 # Development Dependencies for Stremio HACS Integration
+#
+# Versioning policy: avoid version floors on packages that HA or
+# pytest-homeassistant-custom-component pin transitively. pip's resolver
+# raises ResolutionImpossible whenever our floor exceeds their pin, even
+# when the older version works fine for our tests. Let the upstream
+# pins win unless we have a specific feature requirement.
 
 # Home Assistant Core (for testing)
 homeassistant>=2025.1.0
 
-# Runtime Dependencies (from manifest.json)
-# Note: Stremio API integration is implemented natively using aiohttp
-# to avoid pydantic v2 dependency conflict with Home Assistant's pydantic v1.
-pyatv>=0.16.0
-
 # Testing
-# Let pytest-homeassistant-custom-component control pytest and related plugin versions
-pytest-homeassistant-custom-component>=0.13.0
-pytest-cov>=7.0.0
-# pytest-asyncio, pytest-aiohttp, pytest-timeout are included by pytest-homeassistant-custom-component
+# pytest-homeassistant-custom-component controls pytest, pytest-cov,
+# pytest-asyncio, pytest-aiohttp, pytest-timeout etc. — DO NOT add
+# version floors here that will conflict with its pins.
+pytest-homeassistant-custom-component
+pytest-cov
 
 # Async Support
-# Note: aiohttp version is pinned by homeassistant itself (HA 2025.1.x pins
-# aiohttp==3.11.11). Do not add a floor here — pip will raise a resolution
-# error against the HA pin. Let HA's transitive dep choose the version.
+# aiohttp is pinned by HA itself (HA 2025.1.x → aiohttp==3.11.11).
 aiohttp
-aioresponses>=0.7.8
+aioresponses
 
 # Code Quality
-black>=26.0.0
-flake8>=7.3.0
-pylint>=4.0.0
-mypy>=1.19.0
-isort>=7.0.0
-ruff>=0.14.0
+black
+flake8
+pylint
+mypy
+isort
+ruff
 
 # Type Stubs
-types-requests>=2.32.0
+types-requests
 
 # Pre-commit
-pre-commit>=4.5.0
+pre-commit
 
 # Build & Package
-build>=1.4.0
-twine>=6.0.0
+build
+twine
 
 # Documentation
-mkdocs>=1.6.0
-mkdocs-material>=9.7.0
+mkdocs
+mkdocs-material
 
 # Debugging
-ipython>=9.0.0
-ipdb>=0.13.13
+ipython
+ipdb
