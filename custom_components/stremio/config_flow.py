@@ -233,10 +233,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         for addon in self._available_addons:
             manifest = addon.get("manifest", {})
-            addon_id = manifest.get("id", "")
             name = addon.get("transportName") or manifest.get("name", "")
             version = manifest.get("version", "")
-            description = manifest.get("description", "")
 
             # Skip duplicates and empty names
             if not name or name in seen:

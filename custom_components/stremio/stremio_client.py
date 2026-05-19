@@ -2171,7 +2171,6 @@ class StremioClient:
             # Extract genres and other metadata for finding similar content
             source_genres = source_meta.get("genres", [])
             source_director = source_meta.get("director")
-            source_cast = source_meta.get("cast", [])[:3]  # Top 3 cast members
 
             _LOGGER.debug(
                 "Source: %s, genres=%s, director=%s",

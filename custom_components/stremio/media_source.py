@@ -1534,7 +1534,7 @@ class StremioMediaSource(MediaSource):
         except Exception as err:
             _LOGGER.error("Error fetching similar content for %s: %s", media_id, err)
             return self._build_error_browse(
-                identifier, title, f"Failed to load similar content"
+                identifier, title, "Failed to load similar content"
             )
 
     async def _build_genre_content_browse(
