@@ -15,7 +15,10 @@ pytest-cov>=7.0.0
 # pytest-asyncio, pytest-aiohttp, pytest-timeout are included by pytest-homeassistant-custom-component
 
 # Async Support
-aiohttp>=3.13.0
+# Note: aiohttp version is pinned by homeassistant itself (HA 2025.1.x pins
+# aiohttp==3.11.11). Do not add a floor here — pip will raise a resolution
+# error against the HA pin. Let HA's transitive dep choose the version.
+aiohttp
 aioresponses>=0.7.8
 
 # Code Quality
