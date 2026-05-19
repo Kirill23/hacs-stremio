@@ -362,9 +362,7 @@ def get_testing_dashboard_config(entity_id: str) -> dict[str, Any]:
     }
 
 
-async def async_create_testing_dashboard(
-    hass: HomeAssistant, entity_id: str
-) -> None:
+async def async_create_testing_dashboard(hass: HomeAssistant, entity_id: str) -> None:
     """Create a Stremio testing dashboard.
 
     Args:
@@ -399,21 +397,21 @@ async def async_create_testing_dashboard(
 
         # Access the lovelace storage directly
         dashboards_store = storage.Store(
-            hass, 
-            lovelace_dashboard.DASHBOARDS_STORAGE_VERSION, 
-            lovelace_dashboard.DASHBOARDS_STORAGE_KEY
+            hass,
+            lovelace_dashboard.DASHBOARDS_STORAGE_VERSION,
+            lovelace_dashboard.DASHBOARDS_STORAGE_KEY,
         )
-        
+
         # Load existing dashboards
         dashboards_data = await dashboards_store.async_load() or {"items": []}
-        
+
         # Check if dashboard already exists in storage
         existing_dashboard = None
         for dashboard in dashboards_data.get("items", []):
             if dashboard.get("url_path") == DASHBOARD_URL_PATH:
                 existing_dashboard = dashboard
                 break
-        
+
         # Create or get dashboard metadata
         if existing_dashboard:
             _LOGGER.info("Found existing dashboard in storage, will register it")
@@ -422,8 +420,9 @@ async def async_create_testing_dashboard(
         else:
             # Generate a unique ID for the dashboard
             import uuid
+
             dashboard_id = str(uuid.uuid4())
-            
+
             # Create dashboard item
             dashboard_item = {
                 "id": dashboard_id,
@@ -435,11 +434,13 @@ async def async_create_testing_dashboard(
             }
             dashboards_data.setdefault("items", []).append(dashboard_item)
             await dashboards_store.async_save(dashboards_data)
-            _LOGGER.info("Created Stremio testing dashboard metadata with ID: %s", dashboard_id)
+            _LOGGER.info(
+                "Created Stremio testing dashboard metadata with ID: %s", dashboard_id
+            )
 
         # Create the LovelaceStorage instance for this dashboard
         storage_dashboard = lovelace_dashboard.LovelaceStorage(hass, dashboard_item)
-        
+
         # Register in lovelace data
         lovelace_data.dashboards[DASHBOARD_URL_PATH] = storage_dashboard
 
@@ -459,11 +460,13 @@ async def async_create_testing_dashboard(
         config = get_testing_dashboard_config(entity_id)
         await storage_dashboard.async_save(config)
         _LOGGER.info("Updated Stremio testing dashboard configuration")
-        
+
         # Fire lovelace updated event to refresh the UI
         hass.bus.async_fire(EVENT_LOVELACE_UPDATED, {"url_path": DASHBOARD_URL_PATH})
-        
-        _LOGGER.info("Successfully created Stremio testing dashboard at /%s", DASHBOARD_URL_PATH)
+
+        _LOGGER.info(
+            "Successfully created Stremio testing dashboard at /%s", DASHBOARD_URL_PATH
+        )
 
     except Exception as err:
         _LOGGER.exception("Failed to create testing dashboard: %s", err)
