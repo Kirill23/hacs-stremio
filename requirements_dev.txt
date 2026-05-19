@@ -13,7 +13,12 @@ homeassistant>=2025.1.0
 # pytest-homeassistant-custom-component controls pytest, pytest-cov,
 # pytest-asyncio, pytest-aiohttp, pytest-timeout etc. — DO NOT add
 # version floors here that will conflict with its pins.
-pytest-homeassistant-custom-component
+#
+# Pin to the version known to work with our test suite. Newer versions
+# (post-0.13.316) tighten the leaked-thread teardown check which causes
+# test_catalog teardown errors. Bump deliberately after verifying tests
+# still pass against newer plugin releases.
+pytest-homeassistant-custom-component==0.13.316
 pytest-cov
 
 # Async Support
